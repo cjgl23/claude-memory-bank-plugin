@@ -1,89 +1,48 @@
 # Claude Memory Bank Plugin
 
-A Claude Code plugin that implements the [Memory Bank](https://docs.cline.bot/features/memory-bank) pattern — a set of structured markdown files that preserve project context across sessions, so Claude always knows where things stand without you having to re-explain.
+`memory-bank` is a Claude Code plugin that helps maintain project context across sessions by keeping a structured `memory-bank/` directory of Markdown files.
 
-## What it does
+It is designed to:
+- Initialize a standard set of memory bank docs for a project.
+- Keep context current as work evolves.
+- Remind/block stopping when project files changed but the memory bank has not been updated.
 
-- **Initializes** a `memory-bank/` directory in your project with six structured files
-- **Reads** all memory bank files at the start of every task (so Claude has full context)
-- **Automatically reminds** Claude to update the memory bank after meaningful work via a Stop hook
-- Works across any project or repository
+## What This Plugin Includes
 
-## Memory bank files
+- A `memory-bank` skill that can initialize, read, and update memory bank files.
+- A stop hook (`scripts/memory-bank-hook.sh`) that checks whether `memory-bank/*.md` is stale relative to recent project changes.
 
-| File | Purpose |
-|------|---------|
-| `projectbrief.md` | Core requirements, goals, and project scope |
-| `productContext.md` | Why the project exists, problems it solves, UX goals |
-| `activeContext.md` | Current focus, recent changes, next steps *(updated most often)* |
-| `systemPatterns.md` | Architecture, design patterns, component relationships |
-| `techContext.md` | Tech stack, setup instructions, dependencies |
-| `progress.md` | What works, what remains, known issues |
+## Install with Claude Code `/plugin`
 
-## Installation (2 steps)
+Run these commands inside Claude Code:
 
-### Step 1 — Clone this repo as a Claude Code marketplace
-
-```bash
-# macOS / Linux
-git clone https://github.com/cjgl23/claude-memory-bank-plugin.git \
-  ~/.claude/plugins/marketplaces/cjgl23-claude-memory-bank-plugin
+```text
+/plugin marketplace add cjgl23/claude-memory-bank-plugin
+/plugin install memory-bank@cjgl23
 ```
 
-```bash
-# Windows (Git Bash)
-git clone https://github.com/cjgl23/claude-memory-bank-plugin.git \
-  "C:/Users/<your-username>/.claude/plugins/marketplaces/cjgl23-claude-memory-bank-plugin"
+Optional: install to project scope (shared in repo settings) instead of default user scope:
+
+```text
+/plugin install memory-bank@cjgl23 --scope project
 ```
 
-### Step 2 — Enable the plugin
+## Basic Usage
 
-Add to `~/.claude/settings.json` (merge into your existing config):
+After installation, use prompts like:
+- `initialize memory bank`
+- `update memory bank`
+- `read memory bank`
 
-```json
-{
-  "enabledPlugins": {
-    "memory-bank@cjgl23-claude-memory-bank-plugin": true
-  }
-}
+Expected behavior:
+- If `memory-bank/` exists, the skill reads it at task start.
+- On stop, if project files changed after the latest memory bank update, the hook asks you to update:
+  - `memory-bank/activeContext.md`
+  - `memory-bank/progress.md`
+
+## Disable or Remove
+
+```text
+/plugin disable memory-bank@cjgl23
+/plugin uninstall memory-bank@cjgl23
 ```
-
-> **Note**: The plugin ID is `memory-bank@cjgl23-claude-memory-bank-plugin` — it matches the marketplace directory name.
-
-### Step 3 — Restart Claude Code
-
-Restart Claude Code for the plugin to be picked up.
-
-## Usage
-
-### Initialize a memory bank in a new project
-
-```
-initialize memory bank
-```
-
-Claude will explore the project, then create `memory-bank/` with all six files populated with real context.
-
-### Start working in a project that already has a memory bank
-
-Just start your task normally. Claude reads all memory bank files at the beginning of every task automatically.
-
-### Update the memory bank manually
-
-```
-update memory bank
-```
-
-Claude reviews and refreshes all files. `activeContext.md` gets a full current-state snapshot; `progress.md` is updated with completed and remaining work.
-
-### How the Stop hook works
-
-After Claude finishes a task, the hook checks whether any project files were modified since the last memory bank update. If they were, Claude is asked to update `activeContext.md` and `progress.md` before stopping. Once updated, the hook exits silently and Claude stops normally.
-
-## Updating the plugin
-
-```bash
-git -C ~/.claude/plugins/marketplaces/cjgl23-claude-memory-bank-plugin pull
-```
-
-Then restart Claude Code.
