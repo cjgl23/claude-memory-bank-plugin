@@ -40,6 +40,10 @@ Expected behavior:
   - `memory-bank/activeContext.md`
   - `memory-bank/progress.md`
 
+## Privacy
+
+View our [privacy policy](PRIVACY.md) to learn how we handle your data.
+
 ## Disable or Remove
 
 ```text
