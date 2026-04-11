@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "cjgl23",
+  "description": "Personal Claude Code plugins by cjgl23",
+  "owner": {
+    "name": "cjgl23"
+  },
+  "plugins": [
+    {
+      "name": "memory-bank",
+      "description": "Initialize and maintain a structured memory bank of markdown files that preserve project context across sessions.",
+      "source": "./plugins/memory-bank",
+      "category": "productivity"
+    }
+  ]
+}
