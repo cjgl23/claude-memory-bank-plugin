@@ -22,53 +22,81 @@ A Claude Code plugin that implements the [Memory Bank](https://docs.cline.bot/fe
 
 ## Installation
 
-### Step 1 — Clone the plugin into your Claude cache
+### Step 1 — Clone this repo as a marketplace
 
 ```bash
+# macOS / Linux
 git clone https://github.com/cjgl23/claude-memory-bank-plugin.git \
-  ~/.claude/plugins/cache/cjgl23/claude-memory-bank-plugin/latest
+  ~/.claude/plugins/marketplaces/cjgl23
 ```
 
-> On Windows (Git Bash):
-> ```bash
-> git clone https://github.com/cjgl23/claude-memory-bank-plugin.git \
->   "C:/Users/<your-username>/.claude/plugins/cache/cjgl23/claude-memory-bank-plugin/latest"
-> ```
+```bash
+# Windows (Git Bash)
+git clone https://github.com/cjgl23/claude-memory-bank-plugin.git \
+  "C:/Users/<your-username>/.claude/plugins/marketplaces/cjgl23"
+```
 
-### Step 2 — Register the plugin
+### Step 2 — Cache the plugin
 
-Add this entry to `~/.claude/plugins/installed_plugins.json` inside the `"plugins"` object:
+Copy the plugin subdirectory into the versioned cache. Replace `<sha>` with the current commit SHA (run `git rev-parse HEAD` inside the cloned folder):
+
+```bash
+# macOS / Linux
+SHA=$(git -C ~/.claude/plugins/marketplaces/cjgl23 rev-parse HEAD)
+mkdir -p ~/.claude/plugins/cache/cjgl23/memory-bank/$SHA
+cp -r ~/.claude/plugins/marketplaces/cjgl23/plugins/memory-bank/. \
+  ~/.claude/plugins/cache/cjgl23/memory-bank/$SHA/
+```
+
+```bash
+# Windows (Git Bash)
+SHA=$(git -C "C:/Users/<your-username>/.claude/plugins/marketplaces/cjgl23" rev-parse HEAD)
+mkdir -p "C:/Users/<your-username>/.claude/plugins/cache/cjgl23/memory-bank/$SHA"
+cp -r "C:/Users/<your-username>/.claude/plugins/marketplaces/cjgl23/plugins/memory-bank/." \
+  "C:/Users/<your-username>/.claude/plugins/cache/cjgl23/memory-bank/$SHA/"
+```
+
+### Step 3 — Register the marketplace
+
+Add to `~/.claude/plugins/known_marketplaces.json` (merge into the existing JSON object):
 
 ```json
-"claude-memory-bank-plugin@cjgl23": [
+{
+  "cjgl23": {
+    "source": {
+      "source": "github",
+      "repo": "cjgl23/claude-memory-bank-plugin"
+    },
+    "installLocation": "/home/<your-username>/.claude/plugins/marketplaces/cjgl23",
+    "lastUpdated": "2026-01-01T00:00:00.000Z"
+  }
+}
+```
+
+> On Windows use `C:\\Users\\<your-username>\\...` with double backslashes for `installLocation`.
+
+### Step 4 — Register the plugin
+
+Add to `~/.claude/plugins/installed_plugins.json` inside the `"plugins"` object, replacing `<sha>` with your commit SHA from Step 2:
+
+```json
+"memory-bank@cjgl23": [
   {
     "scope": "user",
-    "installPath": "/home/<your-username>/.claude/plugins/cache/cjgl23/claude-memory-bank-plugin/latest",
-    "version": "latest",
+    "installPath": "/home/<your-username>/.claude/plugins/cache/cjgl23/memory-bank/<sha>",
+    "version": "<sha>",
     "installedAt": "2026-01-01T00:00:00.000Z",
     "lastUpdated": "2026-01-01T00:00:00.000Z",
-    "gitCommitSha": "05092a1c81a5ad901b927327f4517ec432ca941a"
+    "gitCommitSha": "<sha>"
   }
 ]
 ```
 
 > On Windows use `C:\\Users\\<your-username>\\...` with double backslashes.
 
-### Step 3 — Enable the plugin
+### Step 5 — Enable the plugin and add the Stop hook
 
-Add to `~/.claude/settings.json`:
-
-```json
-{
-  "enabledPlugins": {
-    "claude-memory-bank-plugin@cjgl23": true
-  }
-}
-```
-
-### Step 4 — Add the Stop hook
-
-Add this to the `"hooks"` section of `~/.claude/settings.json` to get automatic reminders to update the memory bank after meaningful work:
+Add to `~/.claude/settings.json` (merge into your existing config):
 
 ```json
 {
@@ -78,20 +106,23 @@ Add this to the `"hooks"` section of `~/.claude/settings.json` to get automatic 
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"/home/<your-username>/.claude/plugins/cache/cjgl23/claude-memory-bank-plugin/latest/scripts/memory-bank-hook.sh\""
+            "command": "bash \"/home/<your-username>/.claude/plugins/cache/cjgl23/memory-bank/<sha>/scripts/memory-bank-hook.sh\""
           }
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "memory-bank@cjgl23": true
   }
 }
 ```
 
-> On Windows replace the path with `C:/Users/<your-username>/...` (forward slashes are fine in bash commands).
+> On Windows use forward slashes in the bash command path: `C:/Users/<your-username>/...`
 
-### Step 5 — Restart Claude Code
+### Step 6 — Restart Claude Code
 
-Restart Claude Code for the plugin and hook to take effect.
+Restart Claude Code, then run `/reload-plugins` to verify it loads without errors.
 
 ## Usage
 
@@ -117,15 +148,19 @@ Claude reviews and refreshes all files. `activeContext.md` gets a full current-s
 
 ### How the Stop hook works
 
-After Claude finishes a task, the hook checks whether any project files were modified since the last memory bank update. If they were, Claude is asked to update `activeContext.md` and `progress.md` before stopping. Once updated, the hook exits silently and Claude stops normally — no infinite loop.
+After Claude finishes a task, the hook checks whether any project files were modified since the last memory bank update. If they were, Claude is asked to update `activeContext.md` and `progress.md` before stopping. Once updated, the hook exits silently and Claude stops normally.
 
 ## Updating the plugin
 
-To pull the latest version:
-
 ```bash
-cd ~/.claude/plugins/cache/cjgl23/claude-memory-bank-plugin/latest
-git pull
+# Pull latest
+git -C ~/.claude/plugins/marketplaces/cjgl23 pull
+
+# Re-cache with new SHA
+SHA=$(git -C ~/.claude/plugins/marketplaces/cjgl23 rev-parse HEAD)
+mkdir -p ~/.claude/plugins/cache/cjgl23/memory-bank/$SHA
+cp -r ~/.claude/plugins/marketplaces/cjgl23/plugins/memory-bank/. \
+  ~/.claude/plugins/cache/cjgl23/memory-bank/$SHA/
 ```
 
-Then restart Claude Code.
+Then update `installPath`, `version`, `gitCommitSha` in `installed_plugins.json` and the hook path in `settings.json` to the new SHA, and restart Claude Code.
