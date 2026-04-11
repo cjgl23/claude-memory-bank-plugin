@@ -2,6 +2,6 @@
   "name": "memory-bank",
   "description": "Initialize and maintain a structured memory bank of markdown files that preserve project context across sessions.",
   "author": {
-    "name": "Chris"
+    "name": "cjgl23"
   }
 }
