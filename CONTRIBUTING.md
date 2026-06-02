@@ -41,9 +41,9 @@ Thank you for considering contributing to the Claude Memory Bank Plugin! We welc
 4. Run tests to ensure everything works
 
 ### Making Changes
-- The main plugin logic is in the `plugins/memory-bank/` directory
-- Skills are located in `plugins/memory-bank/skills/`
-- Hooks are in `plugins/memory-bank/scripts/`
+- The plugin manifest is at `.claude-plugin/plugin.json` (the repository root is the plugin root)
+- Skills are located in `skills/`
+- Hooks are in `scripts/`
 - Documentation is in the root directory
 
 ## Code Style

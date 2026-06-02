@@ -14,27 +14,49 @@ It is designed to:
 
 ## Install with Claude Code `/plugin`
 
-Run these commands inside Claude Code:
+Install from the Claude community marketplace. Run these commands inside Claude Code:
 
 ```text
-/plugin marketplace add cjgl23/claude-memory-bank-plugin
-/plugin install memory-bank@cjgl23
+/plugin marketplace add anthropics/claude-plugins-community
+/plugin marketplace update claude-community
+/plugin install memory-bank@claude-community
+/reload-plugins
 ```
 
-Optional: install to project scope (shared in repo settings) instead of default user scope:
+## Usage
+
+After installation, initialize the memory bank with the slash command:
 
 ```text
-/plugin install memory-bank@cjgl23 --scope project
+/memory-bank initialize memory bank for this project
 ```
 
-## Basic Usage
+Or use natural language:
 
-After installation, use prompts like:
-- `initialize memory bank`
+```text
+initialize memory bank
+```
+
+Other useful prompts:
 - `update memory bank`
 - `read memory bank`
 
-Expected behavior:
+## Created Project Files
+
+Initializing the memory bank creates a `memory-bank/` directory at your project
+root with the following files:
+
+```text
+memory-bank/projectbrief.md
+memory-bank/productContext.md
+memory-bank/activeContext.md
+memory-bank/systemPatterns.md
+memory-bank/techContext.md
+memory-bank/progress.md
+```
+
+## Expected Behavior
+
 - If `memory-bank/` exists, the skill reads it at task start.
 - On stop, if project files changed after the latest memory bank update, the hook asks you to update:
   - `memory-bank/activeContext.md`
@@ -47,6 +69,6 @@ View our [privacy policy](PRIVACY.md) to learn how we handle your data.
 ## Disable or Remove
 
 ```text
-/plugin disable memory-bank@cjgl23
-/plugin uninstall memory-bank@cjgl23
+/plugin disable memory-bank@claude-community
+/plugin uninstall memory-bank@claude-community
 ```
