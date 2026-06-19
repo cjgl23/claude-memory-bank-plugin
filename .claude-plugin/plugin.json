@@ -1,7 +1,20 @@
 {
   "name": "memory-bank",
+  "version": "0.1.0",
   "description": "Initialize and maintain a structured memory bank of markdown files that preserve project context across sessions.",
   "author": {
     "name": "cjgl23"
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/memory-bank-hook.sh"
+          }
+        ]
+      }
+    ]
   }
 }
