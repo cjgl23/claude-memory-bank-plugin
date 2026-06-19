@@ -18,8 +18,8 @@ if [ ! -d "./memory-bank" ]; then
 fi
 
 # Find the most recently touched memory bank file
-LATEST_MB=$(find ./memory-bank -name "*.md" -type f 2>/dev/null \
-  | xargs ls -t 2>/dev/null \
+LATEST_MB=$(find ./memory-bank -name "*.md" -type f -print0 2>/dev/null \
+  | xargs -0 ls -t 2>/dev/null \
   | head -1)
 
 if [ -z "$LATEST_MB" ]; then
@@ -43,5 +43,7 @@ NEWER_FILES=$(find . \
 
 if [ -n "$NEWER_FILES" ]; then
   FILES_LIST=$(echo "$NEWER_FILES" | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
-  printf '{"decision":"block","reason":"Before finishing, update the memory bank to capture recent work.\n\nFiles changed since last memory bank update: %s\n\nPlease update:\n- memory-bank/activeContext.md: current focus, recent changes, next steps\n- memory-bank/progress.md: what was completed, what remains, known issues\n\nOnce updated, you can stop."}\n' "$FILES_LIST"
+  # Escape characters that would otherwise produce invalid JSON (backslash first, then double-quote)
+  FILES_LIST=$(printf '%s' "$FILES_LIST" | sed 's/\\/\\\\/g; s/"/\\"/g')
+  printf '{"decision":"block","reason":"Before finishing, update the memory bank to capture recent work.\\n\\nFiles changed since last memory bank update: %s\\n\\nPlease update:\\n- memory-bank/activeContext.md: current focus, recent changes, next steps\\n- memory-bank/progress.md: what was completed, what remains, known issues\\n\\nOnce updated, you can stop."}\n' "$FILES_LIST"
 fi
