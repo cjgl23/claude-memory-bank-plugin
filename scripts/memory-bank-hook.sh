@@ -17,9 +17,12 @@ if [ ! -d "./memory-bank" ]; then
   exit 0
 fi
 
-# Find the most recently touched memory bank file
-LATEST_MB=$(find ./memory-bank -name "*.md" -type f -print0 2>/dev/null \
-  | xargs -0 ls -t 2>/dev/null \
+# Find the most recently touched memory bank file.
+# Use find -exec instead of piping to xargs: with no matching files, xargs
+# would still run "ls -t" with no arguments, listing the current directory and
+# wrongly setting LATEST_MB to an unrelated project file. find -exec only runs
+# ls when at least one file matches, so LATEST_MB stays empty otherwise.
+LATEST_MB=$(find ./memory-bank -name "*.md" -type f -exec ls -t {} + 2>/dev/null \
   | head -1)
 
 if [ -z "$LATEST_MB" ]; then
