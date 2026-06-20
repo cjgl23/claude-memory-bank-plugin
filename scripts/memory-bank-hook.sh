@@ -13,6 +13,18 @@
 #   5. After Claude updates the memory bank, the memory bank files will be the
 #      newest, so the hook won't fire again on the next stop.
 
+# Read the hook payload from stdin. Stop hooks receive a JSON object that
+# includes "stop_hook_active": true when Claude is already continuing as a
+# result of a previous Stop-hook block. If we blocked again in that situation
+# we could loop forever — e.g. when a project file carries an mtime at or in
+# the future (files restored from archives, CI artifacts, or clock skew) it
+# will always look "newer" than any freshly written memory bank file. Honor
+# the flag and let Claude stop.
+INPUT=$(cat)
+if printf '%s' "$INPUT" | grep -q '"stop_hook_active"[[:space:]]*:[[:space:]]*true'; then
+  exit 0
+fi
+
 if [ ! -d "./memory-bank" ]; then
   exit 0
 fi
