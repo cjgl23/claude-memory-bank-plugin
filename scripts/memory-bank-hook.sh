@@ -13,8 +13,13 @@
 #                  memory bank (load_mode=summary), a one-line pointer
 #                  (load_mode=pointer), or nothing (load_mode=off).
 #
+# All events also run a warn-only secret check on memory-bank/ (secret_scan):
+# the stop event tells the user once per change, and session-start redacts
+# values from the summary and tells Claude. Secret values are never printed.
+#
 # Settings come from the plugin's userConfig, exported by Claude Code as
-# CLAUDE_PLUGIN_OPTION_REMINDER_MODE, _MIN_CHANGED_FILES and _LOAD_MODE.
+# CLAUDE_PLUGIN_OPTION_REMINDER_MODE, _MIN_CHANGED_FILES, _LOAD_MODE and
+# _SECRET_SCAN.
 # Empty or unknown values fall back to the defaults.
 #
 # Design rules:
@@ -43,6 +48,12 @@ LOAD_MODE=$(lower "$CLAUDE_PLUGIN_OPTION_LOAD_MODE")
 case "$LOAD_MODE" in
   summary|pointer|off) ;;
   *) LOAD_MODE=summary ;;
+esac
+
+SECRET_SCAN=$(lower "$CLAUDE_PLUGIN_OPTION_SECRET_SCAN")
+case "$SECRET_SCAN" in
+  false|off|no|0) SECRET_SCAN=off ;;
+  *) SECRET_SCAN=on ;;
 esac
 
 MIN_CHANGED="${CLAUDE_PLUGIN_OPTION_MIN_CHANGED_FILES%%.*}"
@@ -273,28 +284,115 @@ mark_notified() {
   find "$dir" -type f -mtime +7 -exec rm -f {} + 2>/dev/null
 }
 
+# --- Secret check (warn only) ------------------------------------------------------
+# "kind|extended regex" per line. Only high-confidence formats, to keep false
+# alarms rare. Order matters: a line is reported once, with the first match.
+# Placeholders such as user:<password>@ or user:${PASS}@ are not flagged.
+SECRET_PATTERNS='private key|-----BEGIN ([A-Z]+ )?PRIVATE KEY-----
+AWS access key|(AKIA|ASIA)[0-9A-Z]{16}
+GitHub token|gh[pousr]_[A-Za-z0-9]{36,}
+GitHub token|github_pat_[A-Za-z0-9_]{40,}
+Anthropic API key|sk-ant-[A-Za-z0-9_-]{20,}
+OpenAI API key|sk-(proj-)?[A-Za-z0-9_-]{32,}
+Slack token|xox[abposr]-[A-Za-z0-9-]{10,}
+Google API key|AIza[0-9A-Za-z_-]{35}
+Stripe live key|(sk|rk)_live_[0-9A-Za-z]{20,}
+password in a URL|[a-z][a-z0-9+.-]*://[^/[:space:]:@]+:[^/[:space:]@<$*{][^/[:space:]@]*@'
+
+# Sets SECRET_HITS: one "path:line (kind)" per line. Never includes the value.
+scan_secrets() {
+  SECRET_HITS=""
+  [ "$SECRET_SCAN" = on ] || return 1
+  local kind re hits
+  while IFS='|' read -r kind re; do
+    [ -n "$re" ] || continue
+    hits=$(find ./memory-bank -name "*.md" -type f -exec grep -nE -e "$re" /dev/null {} + \
+      2>/dev/null | cut -d: -f1,2 | sed "s|^\./||; s|\$| ($kind)|")
+    if [ -n "$hits" ]; then
+      SECRET_HITS="$SECRET_HITS$hits
+"
+    fi
+  done <<EOF
+$SECRET_PATTERNS
+EOF
+  SECRET_HITS=$(printf '%s' "$SECRET_HITS" | grep . | awk -F' [(]' '!seen[$1]++')
+  [ -n "$SECRET_HITS" ]
+}
+
+# Up to three hits, comma separated, safe for plain text and JSON.
+secrets_summary() {
+  local total list
+  total=$(printf '%s\n' "$SECRET_HITS" | grep -c .)
+  list=$(printf '%s\n' "$SECRET_HITS" | head -3 | tr '\n' ',' | sed 's/,$//; s/,/, /g')
+  if [ "$total" -gt 3 ]; then
+    list="$list (and $((total - 3)) more)"
+  fi
+  printf '%s' "$list" | LC_ALL=C tr -d '\000-\037\177-\377'
+}
+
+# Replace secret values with [REDACTED] in text passed on stdin.
+redact() {
+  if [ "$SECRET_SCAN" != on ]; then
+    cat
+    return
+  fi
+  local kind re script=""
+  while IFS='|' read -r kind re; do
+    [ -n "$re" ] && script="${script}s#${re}#[REDACTED]#g;"
+  done <<EOF
+$SECRET_PATTERNS
+EOF
+  sed -E "$script"
+}
+
+# Warn once per change: scan when there is no marker yet or a memory bank file
+# changed after the last scan. Prints the user-facing warning, if any.
+secret_warning() {
+  local marker
+  [ "$SECRET_SCAN" = on ] || return 0
+  if marker=$(marker_path secrets) && [ -e "$marker" ] \
+     && ! find ./memory-bank -name "*.md" -type f -newer "$marker" 2>/dev/null | grep -q .; then
+    return 0
+  fi
+  if scan_secrets; then
+    printf 'Possible secret in the memory bank: %s. Remove it before committing: memory bank files are usually shared in git and sent to the model.' \
+      "$(secrets_summary)"
+  fi
+  mark_notified secrets
+}
+
 # --- Events ----------------------------------------------------------------------
 run_stop() {
   # Re-entrant stop: Claude is already continuing because of a block.
   payload_true stop_hook_active && return 0
-  # Plan mode is read-only; asking Claude to write files there is pointless.
-  payload_is permission_mode plan && return 0
-  [ "$REMINDER_MODE" = off ] && return 0
-
   resolve_root || return 0
-  is_stale || return 0
 
-  if [ "$REMINDER_MODE" = strict ]; then
-    local files
-    files=$(json_escape "$(files_summary)")
-    printf '{"decision":"block","reason":"Before finishing, update the memory bank to capture recent work.\\n\\n%s file(s) changed since the last memory bank update: %s\\n\\nPlease update:\\n%s\\n\\nOnce updated, you can stop."}\n' \
-      "$COUNT" "$files" "$(update_targets '- ' '\n')"
-    return 0
+  local secrets reminder="" block=""
+  secrets=$(json_escape "$(secret_warning)")
+
+  # Plan mode is read-only; asking Claude to write files there is pointless.
+  if [ "$REMINDER_MODE" != off ] && ! payload_is permission_mode plan && is_stale; then
+    if [ "$REMINDER_MODE" = strict ]; then
+      block=$(printf 'Before finishing, update the memory bank to capture recent work.\\n\\n%s file(s) changed since the last memory bank update: %s\\n\\nPlease update:\\n%s\\n\\nOnce updated, you can stop.' \
+        "$COUNT" "$(json_escape "$(files_summary)")" "$(update_targets '- ' '\n')")
+    elif should_notify stop; then
+      reminder=$(printf 'Memory bank may be out of date: %s file(s) changed since the last update. Say \\"update memory bank\\" to refresh it.' "$COUNT")
+      mark_notified stop
+    fi
   fi
 
-  should_notify stop || return 0
-  printf '{"systemMessage":"Memory bank may be out of date: %s file(s) changed since the last update. Say \\"update memory bank\\" to refresh it."}\n' "$COUNT"
-  mark_notified stop
+  local message="$secrets"
+  if [ -n "$reminder" ]; then
+    message="${message:+$message\\n}$reminder"
+  fi
+
+  if [ -n "$block" ] && [ -n "$message" ]; then
+    printf '{"decision":"block","reason":"%s","systemMessage":"%s"}\n' "$block" "$message"
+  elif [ -n "$block" ]; then
+    printf '{"decision":"block","reason":"%s"}\n' "$block"
+  elif [ -n "$message" ]; then
+    printf '{"systemMessage":"%s"}\n' "$message"
+  fi
 }
 
 run_prompt() {
@@ -314,7 +412,14 @@ run_prompt() {
 
 # First non-blank lines of a file, as plain text without control characters.
 excerpt() {
-  grep -v '^[[:space:]]*$' "$1" 2>/dev/null | head -n "$2" | tr -d '\000-\010\013-\037'
+  grep -v '^[[:space:]]*$' "$1" 2>/dev/null | head -n "$2" | tr -d '\000-\010\013-\037' \
+    | redact
+}
+
+secret_context_line() {
+  scan_secrets || return 0
+  printf 'Warning: possible secret in the memory bank: %s. Values are redacted here. Tell the user and offer to remove it; memory bank files are usually committed and shared.' \
+    "$(secrets_summary)"
 }
 
 run_session_start() {
@@ -323,7 +428,7 @@ run_session_start() {
   pick_files
 
   if [ "$LOAD_MODE" = pointer ]; then
-    local targets=""
+    local targets="" secret_line
     [ -n "$ACTIVE" ] && targets="$ACTIVE"
     [ -n "$BRIEF" ] && targets="${targets:+$targets and }$BRIEF"
     if [ -n "$targets" ]; then
@@ -331,12 +436,22 @@ run_session_start() {
     else
       printf 'Memory bank: memory-bank/ exists but has no core files yet. Say "initialize memory bank" to create them.\n'
     fi
+    secret_line=$(secret_context_line)
+    [ -n "$secret_line" ] && printf '%s\n' "$secret_line"
     return 0
   fi
 
-  local out others lines
+  local out others lines secret_line
   out="# Memory bank (shared, git-tracked project state)
 Summary loaded at session start. Read the full files in memory-bank/ only when the task needs them."
+
+  # Near the top so truncation never removes it.
+  secret_line=$(secret_context_line)
+  if [ -n "$secret_line" ]; then
+    out="$out
+
+$secret_line"
+  fi
 
   if [ -z "$BRIEF" ] && [ -z "$ACTIVE" ]; then
     if ! find ./memory-bank -path ./memory-bank/archive -prune -o -name "*.md" -type f \

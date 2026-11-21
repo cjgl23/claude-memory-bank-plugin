@@ -80,10 +80,21 @@ Claude Code asks for these when you enable the plugin. Empty or unknown values u
 | `reminder_mode` | `nudge`, `strict`, `off` | `nudge` | **nudge:** shows you a one-line notice at the end of a turn and adds a note for Claude on your next prompt, once per session until the bank is updated. Never blocks. **strict:** blocks Claude once at the end of a turn so it updates the bank (the behavior before 0.3.0). **off:** no reminders. |
 | `min_changed_files` | number ≥ 1 | `1` | How many changed files make the bank count as out of date. |
 | `load_mode` | `summary`, `pointer`, `off` | `summary` | What to load at session start: a summary of up to 2,000 characters, a one-line pointer, or nothing. |
+| `secret_scan` | `true`, `false` | `true` | Warn when memory bank files look like they contain a credential. See below. |
 
 To turn the plugin off for one project only, disable it in that project's Claude Code settings (`/plugin`, or `enabledPlugins` in `.claude/settings.json`).
 
 Prefer native features only? Instead of the session-start hook, you can add `@memory-bank/active.md` (or `@memory-bank/activeContext.md` in a classic bank) to your `CLAUDE.md`, which loads the whole file every session.
+
+## Secret Warnings
+
+Memory bank files are usually committed and are sent to the model, so they should never hold credentials. The plugin checks `memory-bank/` (including `archive/`) for common, high-confidence formats: private keys, AWS access keys, GitHub, Anthropic, OpenAI, Slack, Google and Stripe keys, and passwords inside URLs such as `postgres://user:pass@host`. Placeholders like `user:<password>@` or `user:${DB_PASS}@` are ignored.
+
+- **At the end of a turn,** after memory bank files change, you see a one-line warning with the file, line, and kind of secret.
+- **At session start,** matching values are replaced with `[REDACTED]` in the summary, and Claude is told to point the problem out.
+- It only warns, never blocks, and **never shows the secret value**. It is not a full secret scanner; keep using your usual tools (for example, GitHub secret scanning or pre-commit hooks).
+
+Set `secret_scan` to `false` to turn it off.
 
 ## Upgrading to 1.0
 

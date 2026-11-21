@@ -3,6 +3,17 @@
 All notable changes to this plugin are documented here. The project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-11-21
+
+### Added
+- **Secret warnings.** The hooks check `memory-bank/` for common credential
+  formats (private keys; AWS, GitHub, Anthropic, OpenAI, Slack, Google and Stripe
+  keys; passwords in URLs). You get a one-line warning with the file, line, and
+  kind after memory bank files change, and the session-start summary replaces
+  matching values with `[REDACTED]`. Warn-only, and the value is never shown.
+  New setting `secret_scan` (default `true`).
+- Plugin icon (`.claude-plugin/icon.png`).
+
 ## [1.0.0] - 2026-11-21
 
 ### Upgrade notes

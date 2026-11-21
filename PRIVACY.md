@@ -22,6 +22,9 @@ Code reads. Treat Memory Bank files like any other file you commit.
     after the session ID to Claude Code's plugin data folder
     (`~/.claude/plugins/data/…`). Markers contain no project content and are
     deleted after seven days.
+  - They check memory bank files locally for text that looks like a credential.
+    Warnings name the file, line, and kind of secret, never the value, and the
+    session-start summary replaces matching values with `[REDACTED]`.
 - The Plugin does not send data to any server, API, or third party, and does not
   collect analytics.
 

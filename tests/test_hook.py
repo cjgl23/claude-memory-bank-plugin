@@ -384,8 +384,10 @@ class NudgeStop(unittest.TestCase):
             Project(d).add("changed.py")
             invoke(d, session("../../evil"), env=self.env(data))
             written = [p for p in Path(data).rglob("*") if p.is_file()]
-            self.assertEqual([p.name for p in written], ["evil.stop"])
-            self.assertEqual(written[0].parent, Path(data, "state"))
+            self.assertEqual(sorted(p.name for p in written),
+                             ["evil.secrets", "evil.stop"])
+            for path in written:
+                self.assertEqual(path.parent, Path(data, "state"))
 
     def test_without_plugin_data_nudge_still_works(self):
         with tempfile.TemporaryDirectory() as d:
@@ -647,6 +649,138 @@ class Layouts(unittest.TestCase):
             p.add("memory-bank/brief.md", age=60, text="Brief\n")
             out = invoke(d, session(), event="session-start")
             self.assertIn("Missing: memory-bank/active.md", out)
+
+def fake(*parts):
+    """Join parts at runtime so no secret-shaped string sits in this file."""
+    return "".join(parts)
+
+
+FAKE_SECRETS = {
+    "private key": fake("-----BEGIN ", "RSA PRIVATE", " KEY-----"),
+    "AWS access key": fake("AKIA", "Q" * 16),
+    "GitHub token": fake("gh", "p_", "a1B2" * 9),
+    "Anthropic API key": fake("sk-", "ant-", "api03-", "x" * 30),
+    "OpenAI API key": fake("sk-", "proj-", "Ab1" * 12),
+    "Slack token": fake("xo", "xb-", "1234567890-abcdef"),
+    "Google API key": fake("AI", "za", "S" * 35),
+    "Stripe live key": fake("sk", "_live_", "Z" * 24),
+    "password in a URL": fake("postgres://app:", "hunter2", "@db.internal/app"),
+}
+
+
+class SecretScan(unittest.TestCase):
+    def bank(self, d, line):
+        p = Project(d, bank_files=())
+        p.add("memory-bank/active.md", age=0, text=f"# Active\nFocus\n{line}\n")
+        return p
+
+    def test_each_secret_kind_warns_without_showing_the_value(self):
+        for kind, value in FAKE_SECRETS.items():
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as d:
+                self.bank(d, f"token = {value}")
+                out = json.loads(invoke(d, session()))
+                self.assertEqual(set(out), {"systemMessage"})
+                msg = out["systemMessage"]
+                self.assertIn(f"memory-bank/active.md:3 ({kind})", msg)
+                self.assertNotIn(value, msg)
+
+    def test_placeholders_are_not_flagged(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Project(d, bank_files=())
+            p.add("memory-bank/active.md", age=0, text="\n".join([
+                "DB: postgres://user:<password>@localhost/app",
+                "DB: postgres://user:${DB_PASS}@localhost/app",
+                "DB: postgres://user:***@localhost/app",
+                "Docs: https://example.com/path",
+                "Key lives in the team vault.",
+            ]))
+            self.assertEqual(invoke(d, session()), "")
+
+    def test_warns_once_per_change(self):
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as data:
+            p = self.bank(d, FAKE_SECRETS["AWS access key"])
+            env = clean_env(CLAUDE_PLUGIN_DATA=data)
+            self.assertIn("AWS access key", invoke(d, session(), env=env))
+            self.assertEqual(invoke(d, session(), env=env), "")
+            set_age(Path(data, "state", "s1.secrets"), 30)
+            p.add("memory-bank/active.md", age=0,
+                  text=f"edited\n{FAKE_SECRETS['AWS access key']}\n")
+            self.assertIn("AWS access key", invoke(d, session(), env=env))
+
+    def test_combined_with_strict_block(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = self.bank(d, FAKE_SECRETS["GitHub token"])
+            p.add("memory-bank/active.md", age=60,
+                  text=f"x\n{FAKE_SECRETS['GitHub token']}\n")
+            p.add("code.py")
+            out = json.loads(invoke(d, session()))
+            self.assertEqual(out["decision"], "block")
+            self.assertIn("code.py", out["reason"])
+            self.assertIn("GitHub token", out["systemMessage"])
+
+    def test_combined_with_nudge(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = self.bank(d, FAKE_SECRETS["GitHub token"])
+            p.add("memory-bank/active.md", age=60,
+                  text=f"x\n{FAKE_SECRETS['GitHub token']}\n")
+            p.add("code.py")
+            env = clean_env(CLAUDE_PLUGIN_OPTION_REMINDER_MODE="nudge")
+            msg = json.loads(invoke(d, session(), env=env))["systemMessage"]
+            self.assertIn("GitHub token", msg)
+            self.assertIn("update memory bank", msg)
+
+    def test_runs_even_when_reminders_are_off_or_in_plan_mode(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.bank(d, FAKE_SECRETS["Slack token"])
+            env = clean_env(CLAUDE_PLUGIN_OPTION_REMINDER_MODE="off")
+            self.assertIn("Slack token", invoke(d, session(), env=env))
+            out = invoke(d, session(permission_mode="plan"))
+            self.assertIn("Slack token", out)
+
+    def test_can_be_turned_off(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.bank(d, FAKE_SECRETS["Slack token"])
+            for value in ("false", "off", "0"):
+                env = clean_env(CLAUDE_PLUGIN_OPTION_SECRET_SCAN=value)
+                self.assertEqual(invoke(d, session(), env=env), "")
+
+    def test_archive_and_topic_files_are_scanned(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Project(d, bank_files=())
+            p.add("memory-bank/archive/progress.md", age=0,
+                  text=FAKE_SECRETS["Stripe live key"])
+            self.assertIn("memory-bank/archive/progress.md:1",
+                          invoke(d, session()))
+
+    def test_one_line_is_reported_once(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.bank(d, FAKE_SECRETS["Anthropic API key"])
+            msg = json.loads(invoke(d, session()))["systemMessage"]
+            self.assertEqual(msg.count("active.md:3"), 1)
+            self.assertIn("Anthropic API key", msg)
+
+    def test_session_start_redacts_and_warns_claude(self):
+        with tempfile.TemporaryDirectory() as d:
+            value = FAKE_SECRETS["GitHub token"]
+            self.bank(d, f"token: {value}")
+            out = invoke(d, session(), event="session-start")
+            self.assertNotIn(value, out)
+            self.assertIn("token: [REDACTED]", out)
+            self.assertIn("Warning: possible secret", out)
+            pointer = invoke(d, session(), event="session-start",
+                             env=clean_env(CLAUDE_PLUGIN_OPTION_LOAD_MODE="pointer"))
+            self.assertIn("Warning: possible secret", pointer)
+            self.assertNotIn(value, pointer)
+
+    def test_warning_survives_truncation(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Project(d, bank_files=())
+            body = "\n".join("- " + "y" * 150 for _ in range(40))
+            p.add("memory-bank/active.md", age=0,
+                  text=body + "\n" + FAKE_SECRETS["AWS access key"])
+            out = invoke(d, session(), event="session-start")
+            self.assertIn("(truncated)", out)
+            self.assertIn("Warning: possible secret", out)
 
 
 class Skills(unittest.TestCase):
