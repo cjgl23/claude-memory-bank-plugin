@@ -1,6 +1,6 @@
 {
   "name": "memory-bank",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Keep shared, git-tracked project context in a memory-bank/ folder of Markdown files, loaded at session start and kept current with gentle reminders.",
   "author": {
     "name": "cjgl23"
@@ -30,6 +30,12 @@
       "description": "What to load into context at session start: summary (up to 2,000 characters), pointer (one line), or off.",
       "default": "summary",
       "options": ["summary", "pointer", "off"]
+    },
+    "secret_scan": {
+      "type": "boolean",
+      "title": "Warn about secrets",
+      "description": "Warn when memory bank files look like they contain a credential (API keys, tokens, private keys, passwords in URLs). Never blocks, and never shows the value.",
+      "default": true
     }
   },
   "hooks": {

@@ -21,6 +21,8 @@ Don't copy content that already lives in `CLAUDE.md` or is obvious from the code
 
 Memory Bank files are usually committed to git and are sent to the model as context. Never write credentials, API keys, tokens, passwords, connection strings, private keys, personal data, or customer data into them. Refer to where a secret is kept (for example, "the API key is in the team vault") instead of the value.
 
+If the session-start summary or a hook warning reports a possible secret in the memory bank, tell the user, offer to replace the value with a pointer to where it is kept, and remind them it may already be in git history.
+
 ## Layouts
 
 **Standard layout (1.0+):**
