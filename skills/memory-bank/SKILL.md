@@ -1,11 +1,25 @@
 ---
 name: memory-bank
-description: Initialize, read, and maintain a structured Memory Bank — a set of markdown files in a memory-bank/ directory that preserve project context across sessions. Use this skill whenever the user says "initialize memory bank", "update memory bank", or starts working in a project that already has a memory-bank/ directory. Also use it proactively at the start of any task if a memory-bank/ directory exists in the current project root, since reading those files is required to understand project context. Trigger on any phrasing like "set up memory bank", "create memory bank", "read memory bank", "check memory bank", or "follow your custom instructions" when a memory-bank/ exists.
+description: Initialize, read, and update the shared memory-bank/ folder of Markdown files that records project scope, architecture, current focus, and progress. Use when the user says "initialize memory bank", "update memory bank", "read memory bank", or "check memory bank", or when a memory-bank/ directory exists at the project root and project context is needed.
 ---
 
 # Memory Bank
 
-My memory resets completely between sessions. The Memory Bank is the only link to previous work. It must be read at the start of every task and maintained with precision and clarity — my effectiveness depends entirely on its accuracy.
+Each session starts with a fresh context window. Claude Code's native memory (CLAUDE.md and auto memory) carries instructions and personal notes across sessions, but auto memory stays on one machine. The Memory Bank holds **shared, git-tracked project state** — scope, architecture, current focus, and progress — that every teammate, machine, and session can read and review. Read it at the start of a task and keep it accurate.
+
+## What Goes Where
+
+| Information | Where it belongs |
+|---|---|
+| Rules, commands, and "do not do" instructions for Claude | `CLAUDE.md` or `.claude/rules/` (always loaded). Ask the user before adding to them. |
+| Personal preferences and machine-specific notes | Claude Code auto memory |
+| Shared project state: scope, architecture, decisions, current focus, progress | `memory-bank/` |
+
+Don't copy content that already lives in `CLAUDE.md` or is obvious from the code. If a request conflicts with a decision recorded in the Memory Bank, point out the conflict before acting.
+
+## Never Store
+
+Memory Bank files are usually committed to git and are sent to the model as context. Never write credentials, API keys, tokens, passwords, connection strings, private keys, personal data, or customer data into them. Refer to where a secret is kept (for example, "the API key is in the team vault") instead of the value.
 
 ## Memory Bank Structure
 

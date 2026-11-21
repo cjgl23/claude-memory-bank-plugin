@@ -1,16 +1,26 @@
 # Claude Memory Bank Plugin
 
-`memory-bank` is a Claude Code plugin that helps maintain project context across sessions by keeping a structured `memory-bank/` directory of Markdown files.
+`memory-bank` is a Claude Code plugin that keeps shared project context in a `memory-bank/` directory of Markdown files committed alongside your code.
 
 It is designed to:
 - Initialize a standard set of memory bank docs for a project.
 - Keep context current as work evolves.
-- Remind/block stopping when project files changed but the memory bank has not been updated.
+- Remind Claude to update the memory bank when project files changed but the memory bank has not.
+
+## How It Relates to Claude Code's Native Memory
+
+Claude Code already has `CLAUDE.md` (instructions that load every session) and auto memory (notes Claude keeps for you on one machine). The Memory Bank adds **shared, git-tracked project state**: scope, architecture, current focus, and progress that teammates, other machines, and pull request reviewers can all see.
+
+| Information | Best place |
+|---|---|
+| Rules and commands for Claude | `CLAUDE.md` / `.claude/rules/` |
+| Your personal preferences | Auto memory |
+| Shared project state and progress | `memory-bank/` |
 
 ## What This Plugin Includes
 
 - A `memory-bank` skill that can initialize, read, and update memory bank files.
-- A stop hook (`scripts/memory-bank-hook.sh`) that checks whether `memory-bank/*.md` is stale relative to recent project changes.
+- A Stop hook (`scripts/memory-bank-hook.sh`) that checks whether the memory bank is stale relative to recent project changes.
 
 ## Install with Claude Code `/plugin`
 
@@ -23,12 +33,14 @@ Install from the Claude community marketplace. Run these commands inside Claude 
 /reload-plugins
 ```
 
+On Windows, the hook needs [Git for Windows](https://git-scm.com/download/win) (Git Bash).
+
 ## Usage
 
-After installation, initialize the memory bank with the slash command:
+Initialize the memory bank with the slash command:
 
 ```text
-/memory-bank initialize memory bank for this project
+/memory-bank:memory-bank initialize memory bank for this project
 ```
 
 Or use natural language:
@@ -43,8 +55,7 @@ Other useful prompts:
 
 ## Created Project Files
 
-Initializing the memory bank creates a `memory-bank/` directory at your project
-root with the following files:
+Initializing the memory bank creates a `memory-bank/` directory at your project root with the following files:
 
 ```text
 memory-bank/projectbrief.md
@@ -55,16 +66,19 @@ memory-bank/techContext.md
 memory-bank/progress.md
 ```
 
+Never put credentials, tokens, or personal data in these files. They are usually committed and are sent to the model as context.
+
 ## Expected Behavior
 
 - If `memory-bank/` exists, the skill reads it at task start.
-- On stop, if project files changed after the latest memory bank update, the hook asks you to update:
+- At the end of each Claude turn, the hook checks whether project files changed after `activeContext.md` or `progress.md` was last updated. If so, it asks Claude to update:
   - `memory-bank/activeContext.md`
   - `memory-bank/progress.md`
+- The hook ignores git-ignored files and generated folders such as `node_modules`, `.venv` and `__pycache__`. It finds the project root even when Claude starts in a subdirectory, stays quiet in plan mode, and never asks twice in a row.
 
 ## Privacy
 
-View our [privacy policy](PRIVACY.md) to learn how we handle your data.
+The plugin runs no network code. Memory bank content enters Claude's context like any other file Claude reads. See the [privacy policy](PRIVACY.md) for details.
 
 ## Disable or Remove
 
@@ -72,3 +86,13 @@ View our [privacy policy](PRIVACY.md) to learn how we handle your data.
 /plugin disable memory-bank@claude-community
 /plugin uninstall memory-bank@claude-community
 ```
+
+Uninstalling does not delete `memory-bank/` folders in your projects. Delete them yourself if you no longer want them.
+
+## Development
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md).
