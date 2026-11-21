@@ -1,74 +1,17 @@
 {
   "name": "memory-bank",
-  "version": "1.1.0",
-  "description": "Keep shared, git-tracked project context in a memory-bank/ folder of Markdown files, loaded at session start and kept current with gentle reminders.",
+  "version": "0.1.0",
+  "description": "Initialize and maintain a structured memory bank of markdown files that preserve project context across sessions.",
   "author": {
     "name": "cjgl23"
   },
-  "homepage": "https://github.com/cjgl23/claude-memory-bank-plugin",
-  "repository": "https://github.com/cjgl23/claude-memory-bank-plugin",
-  "license": "Apache-2.0",
-  "keywords": ["memory", "context", "documentation", "project-state"],
-  "userConfig": {
-    "reminder_mode": {
-      "type": "string",
-      "title": "Reminder mode",
-      "description": "How to remind about an out-of-date memory bank: nudge (tell you once, never block), strict (block Claude once so it updates the bank), or off.",
-      "default": "nudge",
-      "options": ["nudge", "strict", "off"]
-    },
-    "min_changed_files": {
-      "type": "number",
-      "title": "Minimum changed files",
-      "description": "How many project files must change after the last memory bank update before a reminder appears.",
-      "default": 1,
-      "min": 1
-    },
-    "load_mode": {
-      "type": "string",
-      "title": "Session start loading",
-      "description": "What to load into context at session start: summary (up to 2,000 characters), pointer (one line), or off.",
-      "default": "summary",
-      "options": ["summary", "pointer", "off"]
-    },
-    "secret_scan": {
-      "type": "boolean",
-      "title": "Warn about secrets",
-      "description": "Warn when memory bank files look like they contain a credential (API keys, tokens, private keys, passwords in URLs). Never blocks, and never shows the value.",
-      "default": true
-    }
-  },
   "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "startup|resume|clear|compact",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/memory-bank-hook.sh session-start",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/memory-bank-hook.sh prompt",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
     "Stop": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/memory-bank-hook.sh stop",
-            "timeout": 10
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/memory-bank-hook.sh"
           }
         ]
       }

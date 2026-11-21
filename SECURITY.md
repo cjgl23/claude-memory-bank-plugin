@@ -2,10 +2,12 @@
 
 ## Supported Versions
 
+Use this section to tell people about which versions of your project are
+currently being supported with security updates.
+
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.1.x   | :white_check_mark: |
-| < 1.1   | :x:                |
+| 1.0.x   | :white_check_mark: |
 
 ## Reporting a Vulnerability
 
@@ -28,6 +30,5 @@ If the vulnerability is declined, we will provide a detailed explanation of our 
 When using this plugin:
 
 - Regularly update to the latest version to receive security patches
-- Never store credentials, tokens, or personal data in `memory-bank/` files: they are usually committed to git and are sent to the model as part of Claude's context
-- Review memory bank changes before committing them
-- The plugin itself runs no network code; see [PRIVACY.md](PRIVACY.md) for exactly what enters Claude's context
+- Review the memory bank files periodically to ensure no sensitive information is accidentally committed
+- The plugin only reads and writes to the local memory-bank/ directory and does not transmit data externally
