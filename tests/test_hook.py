@@ -244,8 +244,13 @@ class Filenames(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p = Project(d)
             raw = os.path.join(os.fsencode(d), b"bad\xffname.txt")
-            with open(raw, "wb") as f:
-                f.write(b"x")
+            try:
+                with open(raw, "wb") as f:
+                    f.write(b"x")
+            except OSError:
+                # Some filesystems (e.g. macOS APFS) refuse non-UTF-8 names,
+                # so the hook can never see one there.
+                self.skipTest("filesystem rejects non-UTF-8 filenames")
             block_reason(invoke(d))  # raises if the JSON is invalid
 
 
