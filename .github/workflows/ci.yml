@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  hook-tests:
+  hook-tests-os:
     name: hook-tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
@@ -31,3 +31,19 @@ jobs:
         run: python3 -m json.tool .claude-plugin/plugin.json > /dev/null
       - name: Run sandboxed hook tests
         run: python3 -m unittest discover -s tests -v
+
+  # Single, stable check name for branch protection ("hook-tests").
+  # Passes only when every OS job in the matrix passed.
+  hook-tests:
+    name: hook-tests
+    needs: hook-tests-os
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require all OS jobs to pass
+        env:
+          RESULT: ${{ needs.hook-tests-os.result }}
+        run: |
+          echo "Matrix result: $RESULT"
+          test "$RESULT" = "success"
