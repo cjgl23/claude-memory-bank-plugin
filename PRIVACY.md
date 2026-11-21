@@ -1,53 +1,69 @@
 # Privacy Policy for Claude Memory Bank Plugin
 
-## Introduction
-This privacy policy describes how the Claude Memory Bank Plugin ("the Plugin") handles information when used with Claude Code.
+## Summary
 
-## Information Collection and Use
-The Claude Memory Bank Plugin is designed to operate entirely locally on your machine. It does not collect, transmit, or store any personal data externally.
+The Claude Memory Bank Plugin ("the Plugin") runs no network code of its own and
+collects no telemetry. It reads and writes plain Markdown files in your project.
+Those files, and the Plugin's hook messages, become part of Claude's context, so
+they are processed by the model provider in the same way as anything else Claude
+Code reads. Treat Memory Bank files like any other file you commit.
 
-### Local Operations Only
-- All plugin functionality occurs within your local Claude Code environment
-- Memory bank files are stored exclusively in your project's `memory-bank/` directory
-- No data is sent to external servers, APIs, or third-party services
-- The plugin only reads and writes files within your local project directory
+## What the Plugin Does on Your Machine
 
-### Types of Information Handled
-The plugin may process:
-- Project file paths and modification timestamps (for staleness checking)
-- Content of memory bank markdown files (for reading/updating context)
-- Temporary working data during plugin execution (held only in memory)
+- **The `memory-bank` skill** tells Claude how to create, read, and update files in
+  your project's `memory-bank/` directory.
+- **The Stop hook** (`scripts/memory-bank-hook.sh`) runs locally at the end of each
+  Claude turn. It compares file modification times in your project, filters out
+  git-ignored and generated files, and may return a short message that lists up
+  to five changed file paths.
+- The Plugin does not send data to any server, API, or third party, and does not
+  collect analytics.
 
-All information remains strictly on your local machine and is never transmitted elsewhere.
+## What Leaves Your Machine
 
-## Data Storage and Security
-- Memory bank data is stored as plain text Markdown files in your project's `memory-bank/` directory
-- You have complete control over these files and can view, edit, or delete them at any time
-- The plugin does not implement any additional security measures beyond standard file system permissions
-- You are responsible for securing your local machine and project files
+- **Model context.** When Claude reads or writes Memory Bank files, their contents
+  enter the conversation. The hook's message, including the changed file paths,
+  does too. Claude Code sends that context to the model provider under your Claude
+  Code terms and settings. The Plugin adds no separate transmission.
+- **Version control.** `memory-bank/` is usually committed. Once you commit and push
+  it, its contents reach your git remote, forks, CI systems, and anyone with access
+  to the repository.
+- **Remote and cloud sessions.** If you use Claude Code in a remote or cloud
+  environment, the Memory Bank files live in that environment's copy of your
+  repository.
 
-## Data Sharing
-The plugin does not share any data with:
-- Anthropic or Claude Code services (beyond standard plugin execution)
-- Third-party services or APIs
-- Any external servers or cloud storage
-- Other users or systems
+## Keeping Sensitive Information Out
 
-## Your Rights and Choices
-You have complete control over:
-- Whether to install or use the plugin
-- What information is stored in your memory bank files
-- When to initialize, update, or read memory bank data
-- The ability to completely remove the plugin and all associated data
+Do not store credentials, API keys, tokens, passwords, connection strings, private
+keys, personal data, or customer data in Memory Bank files. The skill instructs
+Claude not to write such information there. Review the files before committing,
+as you would review any other change.
+
+If you work alone and do not want the Memory Bank shared, add `memory-bank/` to
+your `.gitignore`.
+
+## Your Control Over the Data
+
+- Memory Bank files are plain Markdown. You can read, edit, or delete them at any
+  time.
+- **Uninstalling the Plugin does not delete `memory-bank/` directories.** To remove
+  the data, delete the `memory-bank/` folder from each project (and from git
+  history if it was committed and you need it fully removed).
+- You choose whether to initialize a Memory Bank in each project. The Stop hook does
+  nothing in projects without one.
 
 ## Changes to This Policy
-Any updates to this privacy policy will be reflected in this file. Continued use of the plugin after changes constitutes acceptance of the updated policy.
+
+Updates to this policy are recorded in this file and in `CHANGELOG.md`.
 
 ## Contact
-If you have questions about this privacy policy or the plugin's data practices, please contact the plugin maintainer through the repository issues page.
+
+Questions about this policy or the Plugin's data handling can be raised on the
+repository's issues page.
 
 ## Effective Date
-This policy is effective as of April 12, 2026.
+
+This policy is effective as of November 21, 2026.
 
 ---
 *This plugin is licensed under the Apache License 2.0. See LICENSE file for details.*

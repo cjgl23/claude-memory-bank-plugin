@@ -10,17 +10,40 @@ permissions:
   contents: read
 
 jobs:
-  hook-tests:
-    name: hook-tests
-    runs-on: ubuntu-latest
+  hook-tests-os:
+    name: hook-tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Validate hook shell syntax
         run: bash -n scripts/memory-bank-hook.sh
+      - name: Lint hook with shellcheck
+        if: runner.os == 'Linux'
+        run: shellcheck -S style scripts/*.sh
       - name: Validate plugin metadata JSON
-        run: python -m json.tool .claude-plugin/plugin.json > /dev/null
+        run: python3 -m json.tool .claude-plugin/plugin.json > /dev/null
       - name: Run sandboxed hook tests
-        run: python -m unittest discover -s tests -v
+        run: python3 -m unittest discover -s tests -v
+
+  # Single, stable check name for branch protection ("hook-tests").
+  # Passes only when every OS job in the matrix passed.
+  hook-tests:
+    name: hook-tests
+    needs: hook-tests-os
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require all OS jobs to pass
+        env:
+          RESULT: ${{ needs.hook-tests-os.result }}
+        run: |
+          echo "Matrix result: $RESULT"
+          test "$RESULT" = "success"

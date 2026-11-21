@@ -32,18 +32,20 @@ Thank you for considering contributing to the Claude Memory Bank Plugin! We welc
 
 ### Prerequisites
 - Claude Code installed
-- Basic understanding of shell scripting and markdown
+- Bash, Git, and Python 3 (for the tests)
+- Optional: [shellcheck](https://www.shellcheck.net/)
 
 ### Getting Started
 1. Clone your fork: `git clone https://github.com/your-username/claude-memory-bank-plugin.git`
 2. Navigate to the project directory
-3. Install dependencies (if any)
-4. Run tests to ensure everything works
+3. Run the tests: `python3 -m unittest discover -s tests -v`
+4. Lint the hook: `bash -n scripts/memory-bank-hook.sh && shellcheck scripts/*.sh`
 
 ### Making Changes
 - The plugin manifest is at `.claude-plugin/plugin.json` (the repository root is the plugin root)
 - Skills are located in `skills/`
 - Hooks are in `scripts/`
+- Tests are in `tests/` and must use disposable temporary directories
 - Documentation is in the root directory
 
 ## Code Style
@@ -63,12 +65,11 @@ Thank you for considering contributing to the Claude Memory Bank Plugin! We welc
 ### JSON Files
 - Use 2-space indentation
 - Keep valid JSON format
-- Include necessary comments where allowed
 
 ## Pull Request Process
 
 1. Ensure your PR addresses a single concern
-2. Update documentation as needed
+2. Update documentation and `CHANGELOG.md` as needed
 3. Ensure your code passes any existing tests
 4. Write tests for new functionality
 5. Keep commit history clean
@@ -87,9 +88,6 @@ Please note that this project is released with a Contributor Code of Conduct. By
 
 ## Recognition
 
-Contributors will be acknowledged in:
-- The README.md file
-- Release notes
-- GitHub contributors list
+Contributors are acknowledged in release notes and the GitHub contributors list.
 
 Thank you for helping make the Claude Memory Bank Plugin better!
