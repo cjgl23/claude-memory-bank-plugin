@@ -9,8 +9,8 @@
 #                    off:    do nothing
 #   prompt         UserPromptSubmit hook (nudge mode only). Adds one line of
 #                  context so Claude updates the bank at a natural checkpoint.
-#   session-start  SessionStart hook. Prints a short, size-capped summary of the
-#                  memory bank (load_mode=summary), a one-line pointer
+#   session-start  SessionStart hook. Prints the full brief and active files of
+#                  the memory bank (load_mode=summary), a one-line pointer
 #                  (load_mode=pointer), or nothing (load_mode=off).
 #
 # All events also run a warn-only secret check on memory-bank/ (secret_scan):
@@ -31,7 +31,6 @@
 EVENT="${1:-stop}"
 INPUT=$(cat 2>/dev/null)
 
-SUMMARY_MAX_CHARS=2000
 ROOT=""
 ACTIVE_WARN_LINES=150
 
@@ -410,9 +409,9 @@ run_prompt() {
   mark_notified prompt
 }
 
-# First non-blank lines of a file, as plain text without control characters.
-excerpt() {
-  grep -v '^[[:space:]]*$' "$1" 2>/dev/null | head -n "$2" | tr -d '\000-\010\013-\037' \
+# Whole file as plain text, without control characters.
+full_text() {
+  tr -d '\000-\010\013-\037' < "$1" 2>/dev/null \
     | redact
 }
 
@@ -443,9 +442,8 @@ run_session_start() {
 
   local out others lines secret_line
   out="# Memory bank (shared, git-tracked project state)
-Summary loaded at session start. Read the full files in memory-bank/ only when the task needs them."
+Loaded at session start. Other files in memory-bank/ are listed below."
 
-  # Near the top so truncation never removes it.
   secret_line=$(secret_context_line)
   if [ -n "$secret_line" ]; then
     out="$out
@@ -465,7 +463,7 @@ $secret_line"
     out="$out
 
 ## Brief ($BRIEF)
-$(excerpt "$BRIEF" 12)"
+$(full_text "$BRIEF")"
   else
     out="$out
 
@@ -476,7 +474,7 @@ Missing: memory-bank/$( [ "$ACTIVE" = memory-bank/active.md ] && echo brief.md |
     out="$out
 
 ## Current focus ($ACTIVE)
-$(excerpt "$ACTIVE" 25)"
+$(full_text "$ACTIVE")"
     lines=$(wc -l < "$ACTIVE" | tr -d ' ')
     if [ "${lines:-0}" -gt "$ACTIVE_WARN_LINES" ]; then
       out="$out
@@ -505,10 +503,6 @@ Other memory bank files (read on demand): $others"
 The memory bank may be out of date: $COUNT file(s) changed since its last update."
   fi
 
-  if [ "${#out}" -gt "$SUMMARY_MAX_CHARS" ]; then
-    out="${out:0:$((SUMMARY_MAX_CHARS - 20))}
-...(truncated)"
-  fi
   printf '%s\n' "$out"
 }
 

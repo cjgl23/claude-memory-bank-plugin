@@ -3,6 +3,13 @@
 All notable changes to this plugin are documented here. The project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] - 2026-11-21
+
+### Changed
+- Session start now loads the **full** brief and active files (`brief.md` /
+  `active.md`, or `projectbrief.md` / `activeContext.md`). The 2,000-character
+  and line limits on the session-start summary are removed.
+
 ## [1.1.0] - 2026-11-21
 
 ### Added

@@ -13,8 +13,8 @@ Code reads. Treat Memory Bank files like any other file you commit.
 - **The `memory-bank` skill** tells Claude how to create, read, and update files in
   your project's `memory-bank/` directory.
 - **The hooks** (`scripts/memory-bank-hook.sh`) run locally:
-  - At session start, they read the memory bank and add a summary of up to 2,000
-    characters to Claude's context.
+  - At session start, they read the memory bank and add the full brief and
+    active files to Claude's context.
   - On each prompt and at the end of each turn, they compare file modification
     times in your project, filter out git-ignored and generated files, and may
     return a short reminder that lists up to five changed file paths.

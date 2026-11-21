@@ -23,7 +23,7 @@ Claude Code already has `CLAUDE.md` (instructions that load every session) and a
   - `memory-bank`: reads the memory bank and handles natural-language requests ("update memory bank", "capture this rule", …).
   - Slash commands: `/memory-bank:init`, `/memory-bank:update`, `/memory-bank:consolidate`, `/memory-bank:migrate`.
 - **Hooks** (`scripts/memory-bank-hook.sh`):
-  - **SessionStart:** loads a summary of up to 2,000 characters (the brief, the current focus, and a list of other files).
+  - **SessionStart:** loads the full brief and active files, plus a list of other memory bank files.
   - **Stop / UserPromptSubmit:** detect when the memory bank is out of date, including renamed and deleted files, and remind you or Claude depending on the reminder mode.
 
 ## Install with Claude Code `/plugin`
@@ -79,7 +79,7 @@ Claude Code asks for these when you enable the plugin. Empty or unknown values u
 |---|---|---|---|
 | `reminder_mode` | `nudge`, `strict`, `off` | `nudge` | **nudge:** shows you a one-line notice at the end of a turn and adds a note for Claude on your next prompt, once per session until the bank is updated. Never blocks. **strict:** blocks Claude once at the end of a turn so it updates the bank (the behavior before 0.3.0). **off:** no reminders. |
 | `min_changed_files` | number ≥ 1 | `1` | How many changed files make the bank count as out of date. |
-| `load_mode` | `summary`, `pointer`, `off` | `summary` | What to load at session start: a summary of up to 2,000 characters, a one-line pointer, or nothing. |
+| `load_mode` | `summary`, `pointer`, `off` | `summary` | What to load at session start: the full brief and active files, a one-line pointer, or nothing. |
 | `secret_scan` | `true`, `false` | `true` | Warn when memory bank files look like they contain a credential. See below. |
 
 To turn the plugin off for one project only, disable it in that project's Claude Code settings (`/plugin`, or `enabledPlugins` in `.claude/settings.json`).

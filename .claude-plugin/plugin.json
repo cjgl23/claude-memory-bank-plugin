@@ -1,6 +1,6 @@
 {
   "name": "memory-bank",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Keep shared, git-tracked project context in a memory-bank/ folder of Markdown files, loaded at session start and kept current with gentle reminders.",
   "author": {
     "name": "cjgl23"
@@ -27,7 +27,7 @@
     "load_mode": {
       "type": "string",
       "title": "Session start loading",
-      "description": "What to load into context at session start: summary (up to 2,000 characters), pointer (one line), or off.",
+      "description": "What to load into context at session start: summary (the full brief and active files), pointer (one line), or off.",
       "default": "summary",
       "options": ["summary", "pointer", "off"]
     },

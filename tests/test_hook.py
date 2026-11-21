@@ -470,21 +470,21 @@ class SessionStart(unittest.TestCase):
             self.assertIn("Adding auth.", out)
             self.assertIn("memory-bank/progress.md", out)
             self.assertNotIn("out of date", out)
-            self.assertLessEqual(len(out), 2000)
 
     def test_summary_reports_staleness(self):
         with tempfile.TemporaryDirectory() as d:
             self.bank(d).add("changed.py")
             self.assertIn("1 file(s) changed", self.start(d))
 
-    def test_large_active_context_is_truncated_and_flagged(self):
+    def test_large_active_context_is_loaded_in_full(self):
         with tempfile.TemporaryDirectory() as d:
             p = self.bank(d)
             body = "\n".join(f"- item {i} " + "x" * 120 for i in range(200))
             p.add("memory-bank/activeContext.md", age=60, text=body)
             out = self.start(d)
-            self.assertLessEqual(len(out), 2000)
-            self.assertIn("(truncated)", out)
+            self.assertIn("- item 0 ", out)
+            self.assertIn("- item 199 ", out)
+            self.assertNotIn("(truncated)", out)
 
     def test_size_warning_for_long_active_context(self):
         with tempfile.TemporaryDirectory() as d:
@@ -772,16 +772,16 @@ class SecretScan(unittest.TestCase):
             self.assertIn("Warning: possible secret", pointer)
             self.assertNotIn(value, pointer)
 
-    def test_warning_survives_truncation(self):
+    def test_warning_with_large_bank(self):
         with tempfile.TemporaryDirectory() as d:
             p = Project(d, bank_files=())
             body = "\n".join("- " + "y" * 150 for _ in range(40))
             p.add("memory-bank/active.md", age=0,
                   text=body + "\n" + SAMPLE_PATTERNS["AWS access key"])
             out = invoke(d, session(), event="session-start")
-            self.assertIn("(truncated)", out)
             self.assertIn("Warning: possible secret", out)
-
+            self.assertIn("[REDACTED]", out)
+            self.assertNotIn(SAMPLE_PATTERNS["AWS access key"], out)
 
 class Skills(unittest.TestCase):
     def frontmatter(self, path):
