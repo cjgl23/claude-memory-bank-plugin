@@ -19,10 +19,12 @@ Claude Code already has `CLAUDE.md` (instructions that load every session) and a
 
 ## What This Plugin Includes
 
-- A `memory-bank` skill that can initialize, read, update, and consolidate memory bank files, and route "capture this rule" requests to `CLAUDE.md`.
-- Hooks (`scripts/memory-bank-hook.sh`):
+- **Skills:**
+  - `memory-bank`: reads the memory bank and handles natural-language requests ("update memory bank", "capture this rule", …).
+  - Slash commands: `/memory-bank:init`, `/memory-bank:update`, `/memory-bank:consolidate`, `/memory-bank:migrate`.
+- **Hooks** (`scripts/memory-bank-hook.sh`):
   - **SessionStart:** loads a summary of up to 2,000 characters (the brief, the current focus, and a list of other files).
-  - **Stop / UserPromptSubmit:** detect when the memory bank is out of date and remind you or Claude, depending on the reminder mode.
+  - **Stop / UserPromptSubmit:** detect when the memory bank is out of date, including renamed and deleted files, and remind you or Claude depending on the reminder mode.
 
 ## Install with Claude Code `/plugin`
 
@@ -39,43 +41,34 @@ On Windows, the hook needs [Git for Windows](https://git-scm.com/download/win) (
 
 ## Usage
 
-Initialize the memory bank with the slash command:
+| Command | What it does |
+|---|---|
+| `/memory-bank:init` | Create `memory-bank/brief.md` and `memory-bank/active.md` for this project |
+| `/memory-bank:update` | Update the memory bank after work (incremental) |
+| `/memory-bank:consolidate` | Trim and de-duplicate when files grow long or stale |
+| `/memory-bank:migrate` | Convert a classic six-file bank to the standard layout, with a preview first |
 
-```text
-/memory-bank:memory-bank initialize memory bank for this project
-```
+Natural language works too: `initialize memory bank`, `update memory bank`, `read memory bank`, `consolidate memory bank`, `migrate memory bank`, and `capture this rule` (proposes adding a rule to `CLAUDE.md` or `.claude/rules/`).
 
-Or use natural language:
+## Memory Bank Layout
 
-```text
-initialize memory bank
-```
+| File | Contents |
+|---|---|
+| `memory-bank/brief.md` | Project, goal and scope, architecture and tech that aren't obvious from the code, optional end-state vision and glossary. Changes rarely. |
+| `memory-bank/active.md` | Current focus (first), next steps, status, known issues, recent changes. A snapshot, not a log. |
+| `memory-bank/decisions.md` | Optional. Dated, hard-to-reverse decisions with reasons. |
 
-Other useful prompts:
-- `update memory bank`: incremental update of `activeContext.md` and `progress.md`
-- `read memory bank`
-- `consolidate memory bank`: trim and de-duplicate when files grow
-- `capture this rule`: propose adding a rule to `CLAUDE.md` or `.claude/rules/`
+Other Markdown files in `memory-bank/` are topic notes that Claude reads on demand. `memory-bank/archive/` is ignored.
 
-## Created Project Files
-
-Initializing the memory bank creates a `memory-bank/` directory at your project root with the following files:
-
-```text
-memory-bank/projectbrief.md
-memory-bank/productContext.md
-memory-bank/activeContext.md
-memory-bank/systemPatterns.md
-memory-bank/techContext.md
-memory-bank/progress.md
-```
+**Classic layout:** banks created before 1.0 use six files (`projectbrief.md`, `productContext.md`, `systemPatterns.md`, `techContext.md`, `activeContext.md`, `progress.md`). They keep working without changes.
 
 Never put credentials, tokens, or personal data in these files. They are usually committed and are sent to the model as context.
 
 ## Expected Behavior
 
 - **Session start:** if `memory-bank/` exists, a summary is added to Claude's context. Claude reads full files only when the task needs them.
-- **Out-of-date detection:** the memory bank counts as out of date when project files changed after `activeContext.md` or `progress.md` was last updated. Git-ignored files and generated folders (`node_modules`, `.venv`, `__pycache__`, …) don't count.
+- **Out-of-date detection:** the memory bank counts as out of date when project files changed after the active file (`active.md`, or `activeContext.md` / `progress.md` in a classic bank) was last updated. In git repositories, renamed and deleted files count too. Git-ignored files and generated folders (`node_modules`, `.venv`, `__pycache__`, …) don't count.
+- **Parallel sessions:** sessions on the same branch share one active file. Keep updates small, and prefer one writer per branch.
 - **Reminders** depend on the reminder mode (below). They stay quiet in plan mode, and the hooks find the project root even when Claude starts in a subdirectory.
 
 ## Settings
@@ -90,7 +83,11 @@ Claude Code asks for these when you enable the plugin. Empty or unknown values u
 
 To turn the plugin off for one project only, disable it in that project's Claude Code settings (`/plugin`, or `enabledPlugins` in `.claude/settings.json`).
 
-Prefer native features only? Instead of the session-start hook, you can add `@memory-bank/activeContext.md` to your `CLAUDE.md`, which loads the whole file every session.
+Prefer native features only? Instead of the session-start hook, you can add `@memory-bank/active.md` (or `@memory-bank/activeContext.md` in a classic bank) to your `CLAUDE.md`, which loads the whole file every session.
+
+## Upgrading to 1.0
+
+Nothing changes for existing banks: classic six-file banks are read and updated as before. To switch to the two-file layout, run `/memory-bank:migrate`. It shows the new files before writing anything, then moves the classic files to `memory-bank/archive/`. Nothing is deleted, and you can review everything with `git diff` before committing.
 
 ## Privacy
 

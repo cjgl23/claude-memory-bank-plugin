@@ -3,6 +3,34 @@
 All notable changes to this plugin are documented here. The project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.0] - 2026-11-21
+
+### Upgrade notes
+- **Existing six-file banks keep working with no changes.** The hooks and skills
+  still read and update them.
+- To switch to the new layout, run `/memory-bank:migrate`. It shows the new files
+  first, writes them only after you confirm, and moves the classic files to
+  `memory-bank/archive/`. Nothing is deleted.
+
+### Added
+- Standard two-file layout for new banks: `brief.md` (project, scope,
+  architecture, tech, optional end-state vision and glossary) and `active.md`
+  (current focus, next steps, status, known issues), plus optional
+  `decisions.md`.
+- Slash commands: `/memory-bank:init`, `/memory-bank:update`,
+  `/memory-bank:consolidate`, `/memory-bank:migrate`. `init`, `consolidate` and
+  `migrate` run only when you type them, so they add nothing to Claude's context
+  otherwise.
+- Renamed and deleted files now count as changes in git repositories, including
+  `git mv` and `git rm`.
+
+### Changed
+- The `memory-bank` skill is now a short router; workflows and templates live in
+  `skills/memory-bank/workflows/` and `skills/memory-bank/templates/`.
+- Reminders name `active.md` in standard-layout banks and the classic files
+  otherwise.
+- `memory-bank/archive/` is ignored by the hooks.
+
 ## [0.3.0] - 2026-11-21
 
 ### ⚠️ Behavior change

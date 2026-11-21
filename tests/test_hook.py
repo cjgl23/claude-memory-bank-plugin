@@ -6,6 +6,7 @@ mtimes explicitly, so results do not depend on the machine or on timing.
 
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -524,6 +525,169 @@ class SessionStart(unittest.TestCase):
             self.bank(d)
             out = invoke(d, raw="not json", event="session-start")
             self.assertIn("Adding auth.", out)
+
+REPO = Path(__file__).resolve().parents[1]
+
+
+def git_project(d, files=("app.py", "lib/util.py")):
+    """A committed git project whose memory bank was updated 60s ago and
+    whose files and folders are older than that."""
+    git(d, "init", "-q")
+    p = Project(d)
+    for rel in files:
+        p.add(rel, age=300)
+    git(d, "add", "-A")
+    git(d, "commit", "-qm", "init")
+    for folder in {Path(d)} | {(Path(d) / rel).parent for rel in files}:
+        set_age(folder, 300)
+    return p
+
+
+@unittest.skipUnless(HAS_GIT, "git not installed")
+class RenameAndDelete(unittest.TestCase):
+    def test_plain_rename_is_detected(self):
+        with tempfile.TemporaryDirectory() as d:
+            git_project(d)
+            os.rename(Path(d, "app.py"), Path(d, "main.py"))
+            self.assertIn("app.py (deleted)", block_reason(invoke(d)))
+
+    def test_deletion_is_detected(self):
+        with tempfile.TemporaryDirectory() as d:
+            git_project(d)
+            os.remove(Path(d, "lib", "util.py"))
+            self.assertIn("lib/util.py (deleted)", block_reason(invoke(d)))
+
+    def test_git_mv_and_git_rm_are_detected(self):
+        with tempfile.TemporaryDirectory() as d:
+            git_project(d)
+            git(d, "mv", "app.py", "main.py")
+            git(d, "rm", "-q", "lib/util.py")
+            reason = block_reason(invoke(d))
+            self.assertIn("app.py (deleted)", reason)
+            self.assertIn("lib/util.py (deleted)", reason)
+
+    def test_deleted_folder_is_detected(self):
+        with tempfile.TemporaryDirectory() as d:
+            git_project(d)
+            shutil.rmtree(Path(d, "lib"))
+            self.assertIn("lib/util.py (deleted)", block_reason(invoke(d)))
+
+    def test_deletion_before_bank_update_does_not_count(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = git_project(d)
+            os.remove(Path(d, "app.py"))
+            set_age(Path(d), 120)
+            p.add("memory-bank/activeContext.md", age=0)
+            self.assertEqual(invoke(d), "")
+
+    def test_old_untracked_files_are_not_flagged(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = git_project(d)
+            p.add(".gitignore", age=300, text="*.log\n")
+            p.add("notes.txt", age=300)
+            p.add("debug.log", age=0)  # bumps the folder's mtime
+            self.assertEqual(invoke(d), "")
+
+    def test_no_change_outside_git(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Project(d)
+            p.add("app.py", age=300)
+            os.remove(Path(d, "app.py"))
+            self.assertEqual(invoke(d), "")
+
+
+class Layouts(unittest.TestCase):
+    def two_file(self, d):
+        p = Project(d, bank_files=())
+        p.add("memory-bank/brief.md", age=60, text="# Brief\nWidget API.\n")
+        p.add("memory-bank/active.md", age=60, text="# Active\nAuth.\n")
+        return p
+
+    def test_strict_reason_names_active_md_in_standard_layout(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.two_file(d).add("changed.py")
+            reason = block_reason(invoke(d))
+            self.assertIn("memory-bank/active.md", reason)
+            self.assertNotIn("activeContext.md", reason)
+            self.assertNotIn("\\n", reason)  # real newlines, not escaped text
+
+    def test_strict_reason_names_classic_files_in_classic_layout(self):
+        with tempfile.TemporaryDirectory() as d:
+            Project(d).add("changed.py")
+            reason = block_reason(invoke(d))
+            self.assertIn("memory-bank/activeContext.md", reason)
+            self.assertIn("memory-bank/progress.md", reason)
+
+    def test_prompt_note_follows_layout(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.two_file(d).add("changed.py")
+            env = clean_env(CLAUDE_PLUGIN_OPTION_REMINDER_MODE="nudge")
+            out = invoke(d, session(prompt="x"), env=env, event="prompt")
+            self.assertIn("update memory-bank/active.md", out)
+
+    def test_updating_active_md_clears_reminder(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = self.two_file(d)
+            p.add("code.py", age=30)
+            p.add("memory-bank/active.md", age=0)
+            self.assertEqual(invoke(d), "")
+
+    def test_archive_is_ignored(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = self.two_file(d)
+            p.add("memory-bank/archive/activeContext.md", age=0, text="old\n")
+            p.add("code.py", age=30)
+            self.assertIn("code.py", block_reason(invoke(d)))
+            out = invoke(d, session(), event="session-start")
+            self.assertNotIn("archive", out)
+
+    def test_missing_file_names_follow_layout(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Project(d, bank_files=())
+            p.add("memory-bank/brief.md", age=60, text="Brief\n")
+            out = invoke(d, session(), event="session-start")
+            self.assertIn("Missing: memory-bank/active.md", out)
+
+
+class Skills(unittest.TestCase):
+    def frontmatter(self, path):
+        text = path.read_text()
+        self.assertTrue(text.startswith("---\n"), path)
+        head = text.split("---\n")[1]
+        fields = dict(line.split(":", 1) for line in head.strip().splitlines())
+        return {k.strip(): v.strip() for k, v in fields.items()}, text
+
+    def test_every_skill_has_name_and_description(self):
+        skills = sorted((REPO / "skills").glob("*/SKILL.md"))
+        self.assertEqual([s.parent.name for s in skills],
+                         ["consolidate", "init", "memory-bank", "migrate", "update"])
+        for path in skills:
+            fields, _ = self.frontmatter(path)
+            self.assertEqual(fields["name"], path.parent.name)
+            self.assertTrue(fields["description"])
+            self.assertLessEqual(len(fields["description"]), 1536)
+
+    def test_only_update_and_router_are_model_invocable(self):
+        for name in ("init", "consolidate", "migrate"):
+            fields, _ = self.frontmatter(REPO / "skills" / name / "SKILL.md")
+            self.assertEqual(fields.get("disable-model-invocation"), "true")
+        for name in ("update", "memory-bank"):
+            fields, _ = self.frontmatter(REPO / "skills" / name / "SKILL.md")
+            self.assertNotIn("disable-model-invocation", fields)
+
+    def test_referenced_workflows_and_templates_exist(self):
+        base = REPO / "skills" / "memory-bank"
+        for path in (REPO / "skills").glob("**/*.md"):
+            text = path.read_text()
+            for ref in re.findall(r"(workflows|templates)/([a-z-]+\.md)", text):
+                self.assertTrue((base / ref[0] / ref[1]).is_file(), (path, ref))
+
+    def test_router_keeps_old_trigger_phrases(self):
+        _, text = self.frontmatter(REPO / "skills" / "memory-bank" / "SKILL.md")
+        for phrase in ("initialize memory bank", "update memory bank",
+                       "read memory bank", "consolidate memory bank",
+                       "capture this rule"):
+            self.assertIn(phrase, text)
 
 
 if __name__ == "__main__":

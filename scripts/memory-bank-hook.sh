@@ -128,8 +128,8 @@ find_baseline() {
     \( -name activeContext.md -o -name progress.md -o -name active.md \) \
     -exec ls -t {} + 2>/dev/null | head -1)
   if [ -z "$BASELINE" ]; then
-    BASELINE=$(find ./memory-bank -name "*.md" -type f -exec ls -t {} + 2>/dev/null \
-      | head -1)
+    BASELINE=$(find ./memory-bank -path ./memory-bank/archive -prune -o \
+      -name "*.md" -type f -exec ls -t {} + 2>/dev/null | head -1)
   fi
   [ -n "$BASELINE" ]
 }
@@ -145,8 +145,12 @@ find_changed() {
        -o -path ./memory-bank -o -path ./.claude -o -path ./dist -o -path ./build \) \
     -prune -o -type f -newer "$BASELINE" -print 2>/dev/null)
 
-  if [ -n "$NEWER_FILES" ] && [ "$HAVE_GIT" = 1 ] \
-     && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  local in_git=0
+  if [ "$HAVE_GIT" = 1 ] && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    in_git=1
+  fi
+
+  if [ -n "$NEWER_FILES" ] && [ "$in_git" = 1 ]; then
     local ignored
     ignored=$(printf '%s\n' "$NEWER_FILES" | git check-ignore --stdin 2>/dev/null)
     if [ -n "$ignored" ]; then
@@ -155,11 +159,48 @@ find_changed() {
     fi
   fi
 
+  if [ "$in_git" = 1 ]; then
+    local moved
+    moved=$(find_moved_or_deleted)
+    if [ -n "$moved" ]; then
+      NEWER_FILES=$(printf '%s\n%s\n' "$NEWER_FILES" "$moved" | grep . | sort -u)
+    fi
+  fi
+
   if [ -z "$NEWER_FILES" ]; then
     COUNT=0
   else
     COUNT=$(printf '%s\n' "$NEWER_FILES" | grep -c .)
   fi
+}
+
+# Renames and deletions keep or remove the file, so its own mtime says nothing.
+# git still lists the old path as deleted (a rename is a delete plus a new name),
+# and removing an entry updates the parent folder's mtime. So a deleted tracked
+# path counts only when its nearest existing parent folder is newer than the
+# baseline, which skips deletions made before the last memory bank update
+# without stored state. Covers plain rm/mv (unstaged) and git rm/git mv
+# (staged). Paths are relative to the memory bank root, printed as
+# "./path (deleted)".
+parent_newer() {
+  local dir
+  dir=$(dirname "$1")
+  while [ ! -d "$dir" ]; do
+    dir=$(dirname "$dir")
+  done
+  [ "$dir" -nt "$BASELINE" ]
+}
+
+find_moved_or_deleted() {
+  {
+    git ls-files --deleted -z 2>/dev/null
+    git diff --cached --name-only --relative --no-renames --diff-filter=D -z 2>/dev/null
+  } | tr '\000' '\n' | grep -v -e '^memory-bank/' -e '^\.claude/' | sort -u | head -500 \
+    | while IFS= read -r path; do
+        [ -n "$path" ] && [ ! -e "$path" ] || continue
+        parent_newer "$path" || continue
+        printf './%s (deleted)\n' "$path"
+      done
 }
 
 # True when the bank has a baseline and enough files changed since it.
@@ -179,6 +220,23 @@ files_summary() {
     list="$list (and $((COUNT - 5)) more)"
   fi
   printf '%s' "$list" | LC_ALL=C tr -d '\000-\037\177-\377'
+}
+
+# What the reminders ask Claude to update, depending on the bank's layout.
+update_targets() {
+  if [ -f memory-bank/active.md ]; then
+    printf '%s' "$1memory-bank/active.md: current focus, next steps, status, known issues"
+  else
+    printf '%s' "$1memory-bank/activeContext.md: current focus, recent changes, next steps$2$1memory-bank/progress.md: what was completed, what remains, known issues"
+  fi
+}
+
+update_files() {
+  if [ -f memory-bank/active.md ]; then
+    printf 'memory-bank/active.md'
+  else
+    printf 'memory-bank/activeContext.md and memory-bank/progress.md'
+  fi
 }
 
 json_escape() {
@@ -229,7 +287,8 @@ run_stop() {
   if [ "$REMINDER_MODE" = strict ]; then
     local files
     files=$(json_escape "$(files_summary)")
-    printf '{"decision":"block","reason":"Before finishing, update the memory bank to capture recent work.\\n\\n%s file(s) changed since the last memory bank update: %s\\n\\nPlease update:\\n- memory-bank/activeContext.md: current focus, recent changes, next steps\\n- memory-bank/progress.md: what was completed, what remains, known issues\\n\\nOnce updated, you can stop."}\n' "$COUNT" "$files"
+    printf '{"decision":"block","reason":"Before finishing, update the memory bank to capture recent work.\\n\\n%s file(s) changed since the last memory bank update: %s\\n\\nPlease update:\\n%s\\n\\nOnce updated, you can stop."}\n' \
+      "$COUNT" "$files" "$(update_targets '- ' '\n')"
     return 0
   fi
 
@@ -248,8 +307,8 @@ run_prompt() {
   is_stale || return 0
   should_notify prompt || return 0
 
-  printf 'Memory bank note: memory-bank/ is out of date (%s file(s) changed since the last update: %s). At a natural checkpoint in this task, update memory-bank/activeContext.md and memory-bank/progress.md.\n' \
-    "$COUNT" "$(files_summary)"
+  printf 'Memory bank note: memory-bank/ is out of date (%s file(s) changed since the last update: %s). At a natural checkpoint in this task, update %s.\n' \
+    "$COUNT" "$(files_summary)" "$(update_files)"
   mark_notified prompt
 }
 
@@ -280,7 +339,8 @@ run_session_start() {
 Summary loaded at session start. Read the full files in memory-bank/ only when the task needs them."
 
   if [ -z "$BRIEF" ] && [ -z "$ACTIVE" ]; then
-    if ! find ./memory-bank -name "*.md" -type f 2>/dev/null | grep -q .; then
+    if ! find ./memory-bank -path ./memory-bank/archive -prune -o -name "*.md" -type f \
+         -print 2>/dev/null | grep -q .; then
       printf '%s\n%s\n' "$out" 'memory-bank/ exists but has no files yet. Say "initialize memory bank" to create them.'
       return 0
     fi
@@ -294,7 +354,7 @@ $(excerpt "$BRIEF" 12)"
   else
     out="$out
 
-Missing: memory-bank/projectbrief.md."
+Missing: memory-bank/$( [ "$ACTIVE" = memory-bank/active.md ] && echo brief.md || echo projectbrief.md )."
   fi
 
   if [ -n "$ACTIVE" ]; then
@@ -311,10 +371,11 @@ Note: $ACTIVE is $lines lines long. Consider \"consolidate memory bank\" to keep
   else
     out="$out
 
-Missing: memory-bank/activeContext.md. Say \"update memory bank\" to create it."
+Missing: memory-bank/$( [ "$BRIEF" = memory-bank/brief.md ] && echo active.md || echo activeContext.md ). Say \"update memory bank\" to create it."
   fi
 
-  others=$(find ./memory-bank -name "*.md" -type f 2>/dev/null \
+  others=$(find ./memory-bank -path ./memory-bank/archive -prune -o -name "*.md" -type f \
+      -print 2>/dev/null \
     | sed 's|^\./||' | grep -vxF -e "$BRIEF" -e "$ACTIVE" \
     | sort | head -20 | tr '\n' ',' | sed 's/,$//; s/,/, /g')
   if [ -n "$others" ]; then
