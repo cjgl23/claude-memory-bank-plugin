@@ -1,6 +1,6 @@
 {
   "name": "memory-bank",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "description": "Keep shared, git-tracked project context in a memory-bank/ folder of Markdown files, loaded at session start and kept current with gentle reminders.",
   "author": {
     "name": "cjgl23"
