@@ -12,19 +12,27 @@ Code reads. Treat Memory Bank files like any other file you commit.
 
 - **The `memory-bank` skill** tells Claude how to create, read, and update files in
   your project's `memory-bank/` directory.
-- **The Stop hook** (`scripts/memory-bank-hook.sh`) runs locally at the end of each
-  Claude turn. It compares file modification times in your project, filters out
-  git-ignored and generated files, and may return a short message that lists up
-  to five changed file paths.
+- **The hooks** (`scripts/memory-bank-hook.sh`) run locally:
+  - At session start, they read the memory bank and add a summary of up to 2,000
+    characters to Claude's context.
+  - On each prompt and at the end of each turn, they compare file modification
+    times in your project, filter out git-ignored and generated files, and may
+    return a short reminder that lists up to five changed file paths.
+  - To show a reminder only once per session, they write empty marker files named
+    after the session ID to Claude Code's plugin data folder
+    (`~/.claude/plugins/data/…`). Markers contain no project content and are
+    deleted after seven days.
 - The Plugin does not send data to any server, API, or third party, and does not
   collect analytics.
 
 ## What Leaves Your Machine
 
 - **Model context.** When Claude reads or writes Memory Bank files, their contents
-  enter the conversation. The hook's message, including the changed file paths,
-  does too. Claude Code sends that context to the model provider under your Claude
-  Code terms and settings. The Plugin adds no separate transmission.
+  enter the conversation. The session-start summary is added automatically
+  whenever a Memory Bank exists (set `load_mode` to `off` to stop this). Hook
+  reminders, including changed file paths, enter the conversation too. Claude
+  Code sends that context to the model provider under your Claude Code terms and
+  settings. The Plugin adds no separate transmission.
 - **Version control.** `memory-bank/` is usually committed. Once you commit and push
   it, its contents reach your git remote, forks, CI systems, and anyone with access
   to the repository.
@@ -49,7 +57,7 @@ your `.gitignore`.
 - **Uninstalling the Plugin does not delete `memory-bank/` directories.** To remove
   the data, delete the `memory-bank/` folder from each project (and from git
   history if it was committed and you need it fully removed).
-- You choose whether to initialize a Memory Bank in each project. The Stop hook does
+- You choose whether to initialize a Memory Bank in each project. The hooks do
   nothing in projects without one.
 
 ## Changes to This Policy

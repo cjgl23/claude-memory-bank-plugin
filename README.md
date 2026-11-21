@@ -4,8 +4,8 @@
 
 It is designed to:
 - Initialize a standard set of memory bank docs for a project.
-- Keep context current as work evolves.
-- Remind Claude to update the memory bank when project files changed but the memory bank has not.
+- Load a short summary of the memory bank at the start of every session (and after compaction).
+- Remind you, without interrupting, when project files changed but the memory bank has not.
 
 ## How It Relates to Claude Code's Native Memory
 
@@ -19,8 +19,10 @@ Claude Code already has `CLAUDE.md` (instructions that load every session) and a
 
 ## What This Plugin Includes
 
-- A `memory-bank` skill that can initialize, read, and update memory bank files.
-- A Stop hook (`scripts/memory-bank-hook.sh`) that checks whether the memory bank is stale relative to recent project changes.
+- A `memory-bank` skill that can initialize, read, update, and consolidate memory bank files, and route "capture this rule" requests to `CLAUDE.md`.
+- Hooks (`scripts/memory-bank-hook.sh`):
+  - **SessionStart:** loads a summary of up to 2,000 characters (the brief, the current focus, and a list of other files).
+  - **Stop / UserPromptSubmit:** detect when the memory bank is out of date and remind you or Claude, depending on the reminder mode.
 
 ## Install with Claude Code `/plugin`
 
@@ -50,8 +52,10 @@ initialize memory bank
 ```
 
 Other useful prompts:
-- `update memory bank`
+- `update memory bank`: incremental update of `activeContext.md` and `progress.md`
 - `read memory bank`
+- `consolidate memory bank`: trim and de-duplicate when files grow
+- `capture this rule`: propose adding a rule to `CLAUDE.md` or `.claude/rules/`
 
 ## Created Project Files
 
@@ -70,11 +74,23 @@ Never put credentials, tokens, or personal data in these files. They are usually
 
 ## Expected Behavior
 
-- If `memory-bank/` exists, the skill reads it at task start.
-- At the end of each Claude turn, the hook checks whether project files changed after `activeContext.md` or `progress.md` was last updated. If so, it asks Claude to update:
-  - `memory-bank/activeContext.md`
-  - `memory-bank/progress.md`
-- The hook ignores git-ignored files and generated folders such as `node_modules`, `.venv` and `__pycache__`. It finds the project root even when Claude starts in a subdirectory, stays quiet in plan mode, and never asks twice in a row.
+- **Session start:** if `memory-bank/` exists, a summary is added to Claude's context. Claude reads full files only when the task needs them.
+- **Out-of-date detection:** the memory bank counts as out of date when project files changed after `activeContext.md` or `progress.md` was last updated. Git-ignored files and generated folders (`node_modules`, `.venv`, `__pycache__`, …) don't count.
+- **Reminders** depend on the reminder mode (below). They stay quiet in plan mode, and the hooks find the project root even when Claude starts in a subdirectory.
+
+## Settings
+
+Claude Code asks for these when you enable the plugin. Empty or unknown values use the default.
+
+| Setting | Options | Default | What it does |
+|---|---|---|---|
+| `reminder_mode` | `nudge`, `strict`, `off` | `nudge` | **nudge:** shows you a one-line notice at the end of a turn and adds a note for Claude on your next prompt, once per session until the bank is updated. Never blocks. **strict:** blocks Claude once at the end of a turn so it updates the bank (the behavior before 0.3.0). **off:** no reminders. |
+| `min_changed_files` | number ≥ 1 | `1` | How many changed files make the bank count as out of date. |
+| `load_mode` | `summary`, `pointer`, `off` | `summary` | What to load at session start: a summary of up to 2,000 characters, a one-line pointer, or nothing. |
+
+To turn the plugin off for one project only, disable it in that project's Claude Code settings (`/plugin`, or `enabledPlugins` in `.claude/settings.json`).
+
+Prefer native features only? Instead of the session-start hook, you can add `@memory-bank/activeContext.md` to your `CLAUDE.md`, which loads the whole file every session.
 
 ## Privacy
 
@@ -87,7 +103,7 @@ The plugin runs no network code. Memory bank content enters Claude's context lik
 /plugin uninstall memory-bank@claude-community
 ```
 
-Uninstalling does not delete `memory-bank/` folders in your projects. Delete them yourself if you no longer want them.
+Uninstalling does not delete `memory-bank/` folders in your projects. Delete them yourself if you no longer want them. The plugin's reminder markers in Claude Code's plugin data folder are removed with the plugin.
 
 ## Development
 

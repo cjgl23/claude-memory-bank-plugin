@@ -3,6 +3,30 @@
 All notable changes to this plugin are documented here. The project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-11-21
+
+### ⚠️ Behavior change
+- **Reminders no longer block Claude by default.** The new default `reminder_mode`
+  is `nudge`: you see a one-line notice at the end of a turn, and Claude gets a
+  note on your next prompt, once per session until the memory bank is updated.
+  To keep the old blocking behavior, set `reminder_mode` to `strict`.
+
+### Added
+- SessionStart hook: loads a summary of up to 2,000 characters (brief, current
+  focus, other files, staleness) at startup, resume, clear, and after compaction.
+- UserPromptSubmit hook (nudge mode): adds a one-line "memory bank is out of date"
+  note for Claude. Skipped when your prompt already mentions the memory bank.
+- Settings (`userConfig`): `reminder_mode` (nudge/strict/off), `min_changed_files`,
+  and `load_mode` (summary/pointer/off).
+- Skill: `consolidate memory bank` and `capture this rule` workflows; optional
+  End-State Vision and Glossary sections in the project brief template; dated
+  Decision History format.
+
+### Changed
+- Skill: reads full memory bank files only when the task needs them, instead of
+  all six at the start of every task; updates are incremental.
+- Recognizes `brief.md` / `active.md` when present, ahead of the classic names.
+
 ## [0.2.0] - 2026-11-21
 
 Bug fixes and accuracy updates. Memory bank files and the six-file layout are
