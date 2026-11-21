@@ -1,11 +1,11 @@
 ---
 name: memory-bank
-description: Initialize, read, and update the shared memory-bank/ folder of Markdown files that records project scope, architecture, current focus, and progress. Use when the user says "initialize memory bank", "update memory bank", "read memory bank", or "check memory bank", or when a memory-bank/ directory exists at the project root and project context is needed.
+description: Initialize, read, and update the shared memory-bank/ folder of Markdown files that records project scope, architecture, current focus, and progress. Use when the user says "initialize memory bank", "update memory bank", "read memory bank", "consolidate memory bank", or "capture this rule", or when a memory-bank/ directory exists at the project root and project context is needed.
 ---
 
 # Memory Bank
 
-Each session starts with a fresh context window. Claude Code's native memory (CLAUDE.md and auto memory) carries instructions and personal notes across sessions, but auto memory stays on one machine. The Memory Bank holds **shared, git-tracked project state** — scope, architecture, current focus, and progress — that every teammate, machine, and session can read and review. Read it at the start of a task and keep it accurate.
+Each session starts with a fresh context window. Claude Code's native memory (CLAUDE.md and auto memory) carries instructions and personal notes across sessions, but auto memory stays on one machine. The Memory Bank holds **shared, git-tracked project state** — scope, architecture, current focus, and progress — that every teammate, machine, and session can read and review. A hook loads a short summary of it at session start; keep it accurate so that summary stays useful.
 
 ## What Goes Where
 
@@ -40,18 +40,14 @@ Create additional files/folders within `memory-bank/` as needed to organize: com
 
 ## Workflows
 
-### At the Start of Every Task
+### At the Start of a Task
 
-If `memory-bank/` exists in the project root, read ALL core files before doing anything else. This is not optional. Build a complete picture of the project before proceeding.
+The plugin's SessionStart hook puts a summary of the memory bank in context (headed "Memory bank (shared, git-tracked project state)"), including after compaction.
 
-1. Read `memory-bank/projectbrief.md`
-2. Read `memory-bank/productContext.md`
-3. Read `memory-bank/systemPatterns.md`
-4. Read `memory-bank/techContext.md`
-5. Read `memory-bank/progress.md`
-6. Read `memory-bank/activeContext.md` (last, as it reflects the most current state)
-
-If any file is missing, note it — don't fail silently. Read any additional files present in the directory.
+- **If that summary is in context:** use it. Read full files only when the task needs them — for example planning, architecture changes, or work in an unfamiliar area. Pick the file that matches the need (`systemPatterns.md` for architecture, `techContext.md` for setup and dependencies, `progress.md` for status and known issues).
+- **If no summary is in context** (loading turned off, or the user asked to "read memory bank"): read `memory-bank/activeContext.md` and `memory-bank/projectbrief.md` first, then other files only as needed.
+- If a core file is missing, say so rather than failing silently.
+- If a request conflicts with a decision recorded in the memory bank, point out the conflict before acting.
 
 ---
 
@@ -72,6 +68,14 @@ Triggered by: "initialize memory bank", "set up memory bank", "create memory ban
 
 ## Project Name
 [Name]
+
+## End-State Vision (optional)
+[Where the project is heading long-term, so today's design does not block it]
+
+## Glossary (optional)
+| Term | Meaning | Code identifier | Avoid saying |
+|---|---|---|---|
+| [Term] | [Definition] | [`identifier`] | [synonyms not to use] |
 
 ## Core Goal
 [What this project is trying to accomplish]
@@ -178,7 +182,7 @@ Triggered by: "initialize memory bank", "set up memory bank", "create memory ban
 [Bugs, problems, tech debt]
 
 ## Decision History
-[How the project direction has evolved]
+- [YYYY-MM-DD] [Decision] | Why: [reason] | Trade-off: [what was given up]
 ```
 
 5. After creating all files, confirm to the user what was created and give a brief summary of what was captured.
@@ -187,17 +191,17 @@ Triggered by: "initialize memory bank", "set up memory bank", "create memory ban
 
 ### Update Memory Bank
 
-Triggered by: "update memory bank" (MUST review ALL files), or proactively when:
+Triggered by: "update memory bank", a memory bank reminder from the plugin's hooks, or proactively when:
 - Discovering new project patterns
 - After implementing significant changes
 - When context needs clarification
 - At natural session checkpoints
 
-**Update process:**
+**Update process (incremental):**
 
-1. Read ALL current memory bank files first to understand what's already there.
+1. Read `activeContext.md` and `progress.md`. Read other files only if this session changed what they describe.
 2. Review what has changed or been learned in this session.
-3. Update each file that needs changes:
+3. Update only the files that need changes:
    - `activeContext.md` — Almost always needs updating. Reflect the current focus, recent changes, and next steps.
    - `progress.md` — Update completed work, remaining tasks, and known issues.
    - `systemPatterns.md` — Update if new patterns were established or architecture changed.
@@ -206,7 +210,29 @@ Triggered by: "update memory bank" (MUST review ALL files), or proactively when:
 4. Keep files concise — aim for one page each. If a file is growing too long, split it into a focused sub-file in `memory-bank/` and link to it.
 5. Confirm what was updated.
 
-**Key principle for `activeContext.md`:** This file reflects *current state only* — not a running log. Overwrite old entries rather than appending. It should read like a snapshot of where things are right now.
+**Key principle for `activeContext.md`:** This file reflects *current state only* — not a running log. Overwrite old entries rather than appending. It should read like a snapshot of where things are right now. Its opening lines are what the session-start summary shows, so put the current focus first.
+
+---
+
+### Consolidate Memory Bank
+
+Triggered by: "consolidate memory bank", "clean up memory bank", or when the session-start summary says `activeContext.md` is too long.
+
+1. Read all memory bank files.
+2. Trim `activeContext.md` to the current state: move finished items to `progress.md`, and delete entries that are no longer true.
+3. Remove content duplicated between files or already in `CLAUDE.md`. Keep each fact in one place.
+4. Date any undated decisions in `progress.md` → Decision History.
+5. Summarize what was removed or moved, so the user can review the diff.
+
+---
+
+### Capture a Rule
+
+Triggered by: "capture this rule", "remember to always…", "don't ever…", or the user correcting a pattern they don't want repeated.
+
+1. Rules for how Claude should work belong in `CLAUDE.md` or `.claude/rules/`, which load every session — not in the memory bank.
+2. Propose the exact wording and the file. Ask before writing; these files are shared with the team.
+3. If the rule is a project decision rather than an instruction (for example, "we chose Postgres over MySQL"), record it in `progress.md` → Decision History instead.
 
 ---
 
