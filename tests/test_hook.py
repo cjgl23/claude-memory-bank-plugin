@@ -651,11 +651,11 @@ class Layouts(unittest.TestCase):
             self.assertIn("Missing: memory-bank/active.md", out)
 
 def fake(*parts):
-    """Join parts at runtime so no secret-shaped string sits in this file."""
+    """Join parts at runtime so no credential-shaped string sits in this file."""
     return "".join(parts)
 
 
-FAKE_SECRETS = {
+SAMPLE_PATTERNS = {
     "private key": fake("-----BEGIN ", "RSA PRIVATE", " KEY-----"),
     "AWS access key": fake("AKIA", "Q" * 16),
     "GitHub token": fake("gh", "p_", "a1B2" * 9),
@@ -675,7 +675,7 @@ class SecretScan(unittest.TestCase):
         return p
 
     def test_each_secret_kind_warns_without_showing_the_value(self):
-        for kind, value in FAKE_SECRETS.items():
+        for kind, value in SAMPLE_PATTERNS.items():
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as d:
                 self.bank(d, f"token = {value}")
                 out = json.loads(invoke(d, session()))
@@ -698,20 +698,20 @@ class SecretScan(unittest.TestCase):
 
     def test_warns_once_per_change(self):
         with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as data:
-            p = self.bank(d, FAKE_SECRETS["AWS access key"])
+            p = self.bank(d, SAMPLE_PATTERNS["AWS access key"])
             env = clean_env(CLAUDE_PLUGIN_DATA=data)
             self.assertIn("AWS access key", invoke(d, session(), env=env))
             self.assertEqual(invoke(d, session(), env=env), "")
             set_age(Path(data, "state", "s1.secrets"), 30)
             p.add("memory-bank/active.md", age=0,
-                  text=f"edited\n{FAKE_SECRETS['AWS access key']}\n")
+                  text=f"edited\n{SAMPLE_PATTERNS['AWS access key']}\n")
             self.assertIn("AWS access key", invoke(d, session(), env=env))
 
     def test_combined_with_strict_block(self):
         with tempfile.TemporaryDirectory() as d:
-            p = self.bank(d, FAKE_SECRETS["GitHub token"])
+            p = self.bank(d, SAMPLE_PATTERNS["GitHub token"])
             p.add("memory-bank/active.md", age=60,
-                  text=f"x\n{FAKE_SECRETS['GitHub token']}\n")
+                  text=f"x\n{SAMPLE_PATTERNS['GitHub token']}\n")
             p.add("code.py")
             out = json.loads(invoke(d, session()))
             self.assertEqual(out["decision"], "block")
@@ -720,9 +720,9 @@ class SecretScan(unittest.TestCase):
 
     def test_combined_with_nudge(self):
         with tempfile.TemporaryDirectory() as d:
-            p = self.bank(d, FAKE_SECRETS["GitHub token"])
+            p = self.bank(d, SAMPLE_PATTERNS["GitHub token"])
             p.add("memory-bank/active.md", age=60,
-                  text=f"x\n{FAKE_SECRETS['GitHub token']}\n")
+                  text=f"x\n{SAMPLE_PATTERNS['GitHub token']}\n")
             p.add("code.py")
             env = clean_env(CLAUDE_PLUGIN_OPTION_REMINDER_MODE="nudge")
             msg = json.loads(invoke(d, session(), env=env))["systemMessage"]
@@ -731,7 +731,7 @@ class SecretScan(unittest.TestCase):
 
     def test_runs_even_when_reminders_are_off_or_in_plan_mode(self):
         with tempfile.TemporaryDirectory() as d:
-            self.bank(d, FAKE_SECRETS["Slack token"])
+            self.bank(d, SAMPLE_PATTERNS["Slack token"])
             env = clean_env(CLAUDE_PLUGIN_OPTION_REMINDER_MODE="off")
             self.assertIn("Slack token", invoke(d, session(), env=env))
             out = invoke(d, session(permission_mode="plan"))
@@ -739,7 +739,7 @@ class SecretScan(unittest.TestCase):
 
     def test_can_be_turned_off(self):
         with tempfile.TemporaryDirectory() as d:
-            self.bank(d, FAKE_SECRETS["Slack token"])
+            self.bank(d, SAMPLE_PATTERNS["Slack token"])
             for value in ("false", "off", "0"):
                 env = clean_env(CLAUDE_PLUGIN_OPTION_SECRET_SCAN=value)
                 self.assertEqual(invoke(d, session(), env=env), "")
@@ -748,20 +748,20 @@ class SecretScan(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p = Project(d, bank_files=())
             p.add("memory-bank/archive/progress.md", age=0,
-                  text=FAKE_SECRETS["Stripe live key"])
+                  text=SAMPLE_PATTERNS["Stripe live key"])
             self.assertIn("memory-bank/archive/progress.md:1",
                           invoke(d, session()))
 
     def test_one_line_is_reported_once(self):
         with tempfile.TemporaryDirectory() as d:
-            self.bank(d, FAKE_SECRETS["Anthropic API key"])
+            self.bank(d, SAMPLE_PATTERNS["Anthropic API key"])
             msg = json.loads(invoke(d, session()))["systemMessage"]
             self.assertEqual(msg.count("active.md:3"), 1)
             self.assertIn("Anthropic API key", msg)
 
     def test_session_start_redacts_and_warns_claude(self):
         with tempfile.TemporaryDirectory() as d:
-            value = FAKE_SECRETS["GitHub token"]
+            value = SAMPLE_PATTERNS["GitHub token"]
             self.bank(d, f"token: {value}")
             out = invoke(d, session(), event="session-start")
             self.assertNotIn(value, out)
@@ -777,7 +777,7 @@ class SecretScan(unittest.TestCase):
             p = Project(d, bank_files=())
             body = "\n".join("- " + "y" * 150 for _ in range(40))
             p.add("memory-bank/active.md", age=0,
-                  text=body + "\n" + FAKE_SECRETS["AWS access key"])
+                  text=body + "\n" + SAMPLE_PATTERNS["AWS access key"])
             out = invoke(d, session(), event="session-start")
             self.assertIn("(truncated)", out)
             self.assertIn("Warning: possible secret", out)
